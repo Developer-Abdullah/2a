@@ -1,0 +1,3 @@
+
+DROP TABLE IF EXISTS applications CASCADE;
+DROP TYPE IF EXISTS app_category;

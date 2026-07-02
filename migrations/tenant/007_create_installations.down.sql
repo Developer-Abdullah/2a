@@ -1,0 +1,3 @@
+
+DROP TABLE IF EXISTS installations CASCADE;
+DROP TYPE IF EXISTS install_type;

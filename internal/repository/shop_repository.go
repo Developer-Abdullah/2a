@@ -1,0 +1,414 @@
+package repository
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+
+	"platform/internal/domain"
+	"platform/internal/store/postgres"
+)
+
+var errProductUnavailable = errors.New("product is not available in this currency")
+
+type shopRepo struct {
+	db *postgres.DB
+}
+
+func NewShopRepository(db *postgres.DB) *shopRepo {
+	return &shopRepo{db: db}
+}
+
+// ListPublishedProducts returns published products that have a price in the requested currency,
+// each carrying that single currency's price.
+func (r *shopRepo) ListPublishedProducts(ctx context.Context, tenantID uuid.UUID, currency string) ([]domain.Product, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(`
+		SELECT p.id, p.slug, p.name, COALESCE(p.subtitle,'') AS subtitle, COALESCE(p.description,'') AS description,
+			p.device_type::text AS device_type, p.subscription_days, p.codes_per_unit,
+			p.features, p.terms, COALESCE(p.video_url,'') AS video_url, COALESCE(p.image_s3_key,'') AS image_url,
+			p.is_published, p.purchase_count, p.rating_avg, p.rating_count, p.sort_order, p.created_at,
+			pr.currency, pr.amount, pr.compare_at_amount
+		FROM %[1]s.products p
+		JOIN %[1]s.product_prices pr ON pr.product_id = p.id AND pr.currency = $1
+		WHERE p.is_published = true
+		ORDER BY p.sort_order ASC, p.created_at DESC
+	`, postgres.QuoteIdentifier(schema))
+
+	rows, err := r.db.QueryxContext(ctx, query, currency)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]domain.Product, 0)
+	for rows.Next() {
+		p, price, err := scanProductRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		p.Prices = []domain.ProductPrice{price}
+		products = append(products, *p)
+	}
+	return products, rows.Err()
+}
+
+// GetProductBySlug returns a single published product with ALL its currency prices, so the
+// storefront can switch currency on the product page without a refetch. The `currency` argument is
+// accepted for symmetry but does not filter prices.
+func (r *shopRepo) GetProductBySlug(ctx context.Context, tenantID uuid.UUID, slug, currency string) (*domain.Product, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	q := postgres.QuoteIdentifier(schema)
+
+	var (
+		p          domain.Product
+		deviceType string
+		features   []byte
+		terms      []byte
+	)
+	err = r.db.QueryRowxContext(ctx, fmt.Sprintf(`
+		SELECT id, slug, name, COALESCE(subtitle,''), COALESCE(description,''), device_type::text,
+			subscription_days, codes_per_unit, features, terms, COALESCE(video_url,''), COALESCE(image_s3_key,''),
+			is_published, purchase_count, rating_avg, rating_count, sort_order, created_at
+		FROM %s.products
+		WHERE slug = $1 AND is_published = true
+	`, q), slug).Scan(&p.ID, &p.Slug, &p.Name, &p.Subtitle, &p.Description, &deviceType,
+		&p.SubscriptionDays, &p.CodesPerUnit, &features, &terms, &p.VideoURL, &p.ImageURL,
+		&p.IsPublished, &p.PurchaseCount, &p.RatingAvg, &p.RatingCount, &p.SortOrder, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	p.DeviceType = deviceType
+	p.Features = decodeStringArray(features)
+	p.Terms = decodeStringArray(terms)
+
+	prices := []domain.ProductPrice{}
+	if err := r.db.SelectContext(ctx, &prices, fmt.Sprintf(`
+		SELECT currency, amount, compare_at_amount
+		FROM %s.product_prices WHERE product_id = $1
+		ORDER BY currency
+	`, q), p.ID); err != nil {
+		return nil, err
+	}
+	p.Prices = prices
+	return &p, nil
+}
+
+// CreateOrder prices the cart from the catalog for the given currency (never trusting client prices),
+// then inserts the order and its items in one transaction and returns the pending order.
+func (r *shopRepo) CreateOrder(ctx context.Context, tenantID uuid.UUID, email, phone, currency string, lines []domain.CartLine) (*domain.Order, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if err := r.db.SetDedicatedSchema(ctx, tx, schema); err != nil {
+		return nil, err
+	}
+
+	order := &domain.Order{Email: email, Phone: phone, Currency: currency, Status: "pending"}
+	var subtotal float64
+
+	for _, line := range lines {
+		if line.Qty < 1 {
+			return nil, fmt.Errorf("invalid quantity for %q", line.Slug)
+		}
+		var (
+			productID uuid.UUID
+			name      string
+			amount    float64
+		)
+		err := tx.QueryRowxContext(ctx, `
+			SELECT p.id, p.name, pr.amount
+			FROM products p
+			JOIN product_prices pr ON pr.product_id = p.id AND pr.currency = $2
+			WHERE p.slug = $1 AND p.is_published = true
+		`, line.Slug, currency).Scan(&productID, &name, &amount)
+		if err == sql.ErrNoRows {
+			return nil, errProductUnavailable
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		subtotal += amount * float64(line.Qty)
+		order.Items = append(order.Items, domain.OrderItem{
+			ProductID: productID, ProductName: name, Qty: line.Qty, UnitAmount: amount, Currency: currency,
+		})
+	}
+
+	order.Subtotal = subtotal
+	order.Total = subtotal
+
+	if err := tx.QueryRowxContext(ctx, `
+		INSERT INTO orders (email, phone, currency, subtotal, total, status)
+		VALUES ($1, NULLIF($2,''), $3, $4, $5, 'pending')
+		RETURNING id, created_at
+	`, email, phone, currency, order.Subtotal, order.Total).Scan(&order.ID, &order.CreatedAt); err != nil {
+		return nil, err
+	}
+
+	for i := range order.Items {
+		it := &order.Items[i]
+		if err := tx.QueryRowxContext(ctx, `
+			INSERT INTO order_items (order_id, product_id, product_name, qty, unit_amount, currency)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING id
+		`, order.ID, it.ProductID, it.ProductName, it.Qty, it.UnitAmount, it.Currency).Scan(&it.ID); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return order, nil
+}
+
+func (r *shopRepo) GetOrder(ctx context.Context, tenantID, orderID uuid.UUID) (*domain.Order, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	q := postgres.QuoteIdentifier(schema)
+
+	var o domain.Order
+	err = r.db.QueryRowxContext(ctx, fmt.Sprintf(`
+		SELECT id, email, COALESCE(phone,''), currency, subtotal, total, status,
+			COALESCE(provider,''), COALESCE(provider_ref,''), created_at, paid_at, fulfilled_at
+		FROM %s.orders WHERE id = $1
+	`, q), orderID).Scan(&o.ID, &o.Email, &o.Phone, &o.Currency, &o.Subtotal, &o.Total, &o.Status,
+		&o.Provider, &o.ProviderRef, &o.CreatedAt, &o.PaidAt, &o.FulfilledAt)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.db.SelectContext(ctx, &o.Items, fmt.Sprintf(`
+		SELECT id, product_id, product_name, qty, unit_amount, currency
+		FROM %s.order_items WHERE order_id = $1 ORDER BY product_name
+	`, q), orderID); err != nil {
+		return nil, err
+	}
+
+	codes := []string{}
+	if err := r.db.SelectContext(ctx, &codes, fmt.Sprintf(`
+		SELECT code FROM %s.activation_codes WHERE order_id = $1 ORDER BY code
+	`, q), orderID); err != nil {
+		return nil, err
+	}
+	o.Codes = codes
+	return &o, nil
+}
+
+func (r *shopRepo) AttachCheckout(ctx context.Context, tenantID, orderID uuid.UUID, provider, providerRef string) error {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	res, err := r.db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s.orders SET provider = $2, provider_ref = $3
+		WHERE id = $1 AND status = 'pending'
+	`, postgres.QuoteIdentifier(schema)), orderID, provider, providerRef)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("order %s not found or not pending", orderID)
+	}
+	return nil
+}
+
+// FulfillByProviderRef locks the order matching a payment-gateway reference and fulfills it if it has
+// not already been. Used by the automated webhook path. Idempotent: a second call for an
+// already-fulfilled order returns applied=false and changes nothing.
+func (r *shopRepo) FulfillByProviderRef(ctx context.Context, tenantID uuid.UUID, provider, providerRef string) (*domain.Order, bool, error) {
+	return r.fulfill(ctx, tenantID,
+		`SELECT id, email, COALESCE(phone,''), currency, subtotal, total, status
+		 FROM orders WHERE provider = $1 AND provider_ref = $2 FOR UPDATE`,
+		[]interface{}{provider, providerRef},
+		fmt.Sprintf("no order for %s ref %s", provider, providerRef), false)
+}
+
+// FulfillByID locks an order by id and fulfills it — used for MANUAL payment confirmation from the
+// admin dashboard (there is no payment gateway). Marks the order fulfilled and mints the codes.
+// Idempotent: confirming an already-fulfilled order returns applied=false and changes nothing.
+func (r *shopRepo) FulfillByID(ctx context.Context, tenantID, orderID uuid.UUID) (*domain.Order, bool, error) {
+	return r.fulfill(ctx, tenantID,
+		`SELECT id, email, COALESCE(phone,''), currency, subtotal, total, status
+		 FROM orders WHERE id = $1 FOR UPDATE`,
+		[]interface{}{orderID},
+		fmt.Sprintf("order %s not found", orderID), true)
+}
+
+// fulfill is the shared fulfillment core: it locks the order via lockSQL, and if not already
+// fulfilled, mints one activation code per purchased unit (qty * codes_per_unit), bumps each
+// product's purchase counter, and marks the order fulfilled. When manual is true the payment is
+// attributed to "manual" (admin-confirmed) rather than a gateway.
+func (r *shopRepo) fulfill(ctx context.Context, tenantID uuid.UUID, lockSQL string, lockArgs []interface{}, notFoundMsg string, manual bool) (*domain.Order, bool, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback()
+	if err := r.db.SetDedicatedSchema(ctx, tx, schema); err != nil {
+		return nil, false, err
+	}
+
+	var order domain.Order
+	err = tx.QueryRowxContext(ctx, lockSQL, lockArgs...).Scan(&order.ID, &order.Email, &order.Phone,
+		&order.Currency, &order.Subtotal, &order.Total, &order.Status)
+	if err == sql.ErrNoRows {
+		return nil, false, fmt.Errorf("%s", notFoundMsg)
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	if order.Status == "fulfilled" {
+		return &order, false, nil // already fulfilled — replayed webhook or double confirmation
+	}
+
+	// Items joined with their product so we know how many codes to mint and their device/expiry.
+	type fulfillItem struct {
+		ItemID           uuid.UUID `db:"item_id"`
+		Qty              int       `db:"qty"`
+		CodesPerUnit     int       `db:"codes_per_unit"`
+		DeviceType       string    `db:"device_type"`
+		SubscriptionDays int       `db:"subscription_days"`
+	}
+	var items []fulfillItem
+	if err := tx.SelectContext(ctx, &items, `
+		SELECT oi.id AS item_id, oi.qty, p.codes_per_unit, p.device_type::text AS device_type, p.subscription_days
+		FROM order_items oi
+		JOIN products p ON p.id = oi.product_id
+		WHERE oi.order_id = $1
+	`, order.ID); err != nil {
+		return nil, false, err
+	}
+
+	for _, it := range items {
+		expiresAt := time.Now().Add(time.Duration(it.SubscriptionDays) * 24 * time.Hour)
+		total := it.Qty * max(it.CodesPerUnit, 1)
+		for minted := 0; minted < total; {
+			code, err := generateActivationCode()
+			if err != nil {
+				return nil, false, err
+			}
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO activation_codes (code, type, device_type, max_devices, max_uses, expires_at, order_id, order_item_id)
+				VALUES ($1, 'time_bound'::activation_code_type, $2::allowed_device_type, 1, 1, $3, $4, $5)
+				ON CONFLICT (code) DO NOTHING
+			`, code, it.DeviceType, expiresAt, order.ID, it.ItemID)
+			if err != nil {
+				return nil, false, err
+			}
+			if n, _ := res.RowsAffected(); n == 1 {
+				minted++
+			}
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE products SET purchase_count = purchase_count + $2, updated_at = NOW()
+			WHERE id = (SELECT product_id FROM order_items WHERE id = $1)
+		`, it.ItemID, it.Qty); err != nil {
+			return nil, false, err
+		}
+	}
+
+	// For a manual confirmation, attribute the payment to "manual" when no gateway was recorded.
+	statusSQL := `UPDATE orders SET status = 'fulfilled', paid_at = COALESCE(paid_at, NOW()), fulfilled_at = NOW() WHERE id = $1`
+	if manual {
+		statusSQL = `UPDATE orders SET status = 'fulfilled', provider = COALESCE(NULLIF(provider,''),'manual'), paid_at = COALESCE(paid_at, NOW()), fulfilled_at = NOW() WHERE id = $1`
+	}
+	if _, err := tx.ExecContext(ctx, statusSQL, order.ID); err != nil {
+		return nil, false, err
+	}
+
+	// Read back the minted codes for the caller.
+	codes := []string{}
+	if err := tx.SelectContext(ctx, &codes, `SELECT code FROM activation_codes WHERE order_id = $1 ORDER BY code`, order.ID); err != nil {
+		return nil, false, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, false, err
+	}
+	order.Status = "fulfilled"
+	order.Codes = codes
+	return &order, true, nil
+}
+
+func (r *shopRepo) tenantSchema(ctx context.Context, tenantID uuid.UUID) (string, error) {
+	var schemaName string
+	if err := r.db.GetContext(ctx, &schemaName, `SELECT schema_name FROM public.tenants WHERE id = $1`, tenantID); err != nil {
+		return "", err
+	}
+	return schemaName, nil
+}
+
+// scanProductRow scans a product joined with a single price row (list query shape).
+func scanProductRow(rows *sqlx.Rows) (*domain.Product, domain.ProductPrice, error) {
+	var (
+		p          domain.Product
+		deviceType string
+		features   []byte
+		terms      []byte
+		price      domain.ProductPrice
+	)
+	if err := rows.Scan(&p.ID, &p.Slug, &p.Name, &p.Subtitle, &p.Description, &deviceType,
+		&p.SubscriptionDays, &p.CodesPerUnit, &features, &terms, &p.VideoURL, &p.ImageURL,
+		&p.IsPublished, &p.PurchaseCount, &p.RatingAvg, &p.RatingCount, &p.SortOrder, &p.CreatedAt,
+		&price.Currency, &price.Amount, &price.CompareAt); err != nil {
+		return nil, domain.ProductPrice{}, err
+	}
+	p.DeviceType = deviceType
+	p.Features = decodeStringArray(features)
+	p.Terms = decodeStringArray(terms)
+	return &p, price, nil
+}
+
+// decodeStringArray parses a JSONB string-array column, tolerating NULL/empty as an empty slice.
+func decodeStringArray(raw []byte) []string {
+	if len(raw) == 0 {
+		return []string{}
+	}
+	var out []string
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return []string{}
+	}
+	if out == nil {
+		return []string{}
+	}
+	// Drop blank entries that can creep in from editing.
+	cleaned := out[:0]
+	for _, s := range out {
+		if strings.TrimSpace(s) != "" {
+			cleaned = append(cleaned, s)
+		}
+	}
+	return cleaned
+}

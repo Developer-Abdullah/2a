@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS clone_records CASCADE;
+DROP TYPE IF EXISTS clone_status;

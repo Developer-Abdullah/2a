@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-cairo: "Cairo", "Tajawal", system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-slate-50 text-ink antialiased;
+}
+
+.container-page {
+  @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+}
+
+/* Double A brand gradient: deep navy through plum into the crimson glow of the logo. */
+.brand-gradient {
+  background-image: linear-gradient(135deg, #131c33 0%, #2b3b64 35%, #5d2c48 70%, #a02f3f 100%);
+}
+
+.card {
+  @apply rounded-2xl bg-white shadow-card ring-1 ring-slate-100;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition
+    focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+}
+
+.btn-ghost {
+  @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
+}
+
+.btn-white {
+  @apply btn bg-white text-brand-700 hover:bg-brand-50;
+}

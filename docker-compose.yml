@@ -1,0 +1,236 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-platform_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_db_password}
+      POSTGRES_DB: ${DB_NAME:-platform_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-platform_admin} -d ${DB_NAME:-platform_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: platform-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: platform-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-admin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-SecureAdminPass123!}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Creates the object-storage bucket the API presigns against, then exits.
+  minio-init:
+    image: minio/mc
+    container_name: platform-minio-init
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-admin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-SecureAdminPass123!}
+      S3_BUCKET: ${S3_BUCKET:-platform-vault}
+    entrypoint: ["/bin/sh", "-c", "until mc alias set local http://minio:9000 $$S3_ACCESS_KEY $$S3_SECRET_KEY; do sleep 1; done && mc mb -p local/$$S3_BUCKET || true && echo bucket-ready"]
+    networks:
+      - backend
+    depends_on:
+      minio:
+        condition: service_healthy
+
+  # 1. Public schema migrations.
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/migrate.Dockerfile
+    container_name: platform-migrate
+    command: ["-target=public", "-action=up", "-db=postgres://${DB_USER:-platform_admin}:${DB_PASSWORD:-secure_db_password}@postgres:5432/${DB_NAME:-platform_db}?sslmode=disable"]
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 2. Tenant schema migrations (creates the tenant_store tables).
+  tenant-migrate:
+    build:
+      context: .
+      dockerfile: docker/migrate.Dockerfile
+    container_name: platform-tenant-migrate
+    command: ["-target=tenant", "-tenant-id=store", "-action=up", "-db=postgres://${DB_USER:-platform_admin}:${DB_PASSWORD:-secure_db_password}@postgres:5432/${DB_NAME:-platform_db}?sslmode=disable"]
+    networks:
+      - backend
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # 3. Seed (public rows + cert + tenant demo data). Runs AFTER tenant tables exist so a single
+  #    pass populates everything.
+  seed:
+    build:
+      context: .
+      dockerfile: docker/seed.Dockerfile
+    container_name: platform-seed
+    environment:
+      DB_DSN: "postgres://${DB_USER:-platform_admin}:${DB_PASSWORD:-secure_db_password}@postgres:5432/${DB_NAME:-platform_db}?sslmode=disable"
+    networks:
+      - backend
+    depends_on:
+      tenant-migrate:
+        condition: service_completed_successfully
+
+  core-api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: platform-core-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+
+  admin-api:
+    build:
+      context: .
+      dockerfile: docker/admin-api.Dockerfile
+    container_name: platform-admin-api
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+
+  signing-worker:
+    build:
+      context: .
+      dockerfile: docker/signing.Dockerfile
+    container_name: platform-signing-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+
+  notifier-worker:
+    build:
+      context: .
+      dockerfile: docker/notifier.Dockerfile
+    container_name: platform-notifier-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+
+  admin-dashboard:
+    build:
+      context: .
+      dockerfile: docker/admin.Dockerfile
+    container_name: platform-admin-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      BACKEND_API_URL: http://admin-api:8081
+      NEXTAUTH_URL: http://localhost:3000
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - admin-api
+
+  # Public customer-facing storefront. Talks to the core API server-side (with the store tenant
+  # header) so the browser never needs CORS or the tenant slug.
+  storefront:
+    build:
+      context: .
+      dockerfile: docker/storefront.Dockerfile
+    container_name: platform-storefront
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      BACKEND_API_URL: http://core-api:8080
+      STORE_TENANT_SLUG: ${STORE_TENANT_SLUG:-store}
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - core-api
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
