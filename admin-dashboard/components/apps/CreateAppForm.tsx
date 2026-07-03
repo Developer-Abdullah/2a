@@ -33,28 +33,28 @@ export default function CreateAppForm() {
   return (
     <form onSubmit={onSubmit} className="max-w-xl space-y-4">
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Name</label>
+        <label className="text-sm font-medium text-foreground/80">Name</label>
         <Input name="name" required placeholder="Cloud Notes" />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Bundle Identifier</label>
+        <label className="text-sm font-medium text-foreground/80">Bundle Identifier</label>
         <Input name="bundle_identifier" required placeholder="com.company.app" />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Category</label>
-        <select name="category" defaultValue="other" className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+        <label className="text-sm font-medium text-foreground/80">Category</label>
+        <select name="category" defaultValue="other" className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Description</label>
-        <textarea name="description" rows={3} className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="What does this app do?" />
+        <label className="text-sm font-medium text-foreground/80">Description</label>
+        <textarea name="description" rows={3} className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="What does this app do?" />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Features (comma separated)</label>
+        <label className="text-sm font-medium text-foreground/80">Features (comma separated)</label>
         <Input name="features" placeholder="Fast sync, Offline mode" />
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-700">
+      <label className="flex items-center gap-2 text-sm text-foreground/80">
         <input type="checkbox" name="publish" defaultChecked /> Publish immediately
       </label>
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}

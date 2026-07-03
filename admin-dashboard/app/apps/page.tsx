@@ -20,7 +20,7 @@ export default async function AppsPage() {
   }
 
   return (
-    <DashboardShell title="Applications">
+    <DashboardShell title="title.apps">
       <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-slate-500">{apps.length} application(s)</p>
         <Link href="/apps/new">

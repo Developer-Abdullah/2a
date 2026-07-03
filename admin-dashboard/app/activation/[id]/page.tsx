@@ -20,7 +20,7 @@ export default async function ActivationDetailPage({ params }: { params: Promise
   }
 
   return (
-    <DashboardShell title="Activation Code">
+    <DashboardShell title="title.activation_code">
       <Link href="/activation" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to codes
       </Link>

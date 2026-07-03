@@ -18,7 +18,7 @@ export default async function DevicesPage() {
   }
 
   return (
-    <DashboardShell title="Devices">
+    <DashboardShell title="title.devices">
       <p className="mb-4 text-sm text-slate-500">{items.length} device(s)</p>
       {error ? (
         <p className="text-sm text-red-600">{error}</p>

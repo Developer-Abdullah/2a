@@ -20,7 +20,7 @@ export default async function CertificatesPage() {
   const active = items.filter((c) => c.is_active).length;
 
   return (
-    <DashboardShell title="Certificate Pool">
+    <DashboardShell title="title.cert_pool">
       {error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (

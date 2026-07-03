@@ -28,16 +28,16 @@ export default function SendNotificationForm() {
   return (
     <form onSubmit={onSubmit} className="max-w-xl space-y-4">
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Title</label>
+        <label className="text-sm font-medium text-foreground/80">Title</label>
         <Input name="title" required placeholder="New release available" />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Body</label>
-        <textarea name="body" rows={3} required className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Tap to update to the latest version." />
+        <label className="text-sm font-medium text-foreground/80">Body</label>
+        <textarea name="body" rows={3} required className="flex w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="Tap to update to the latest version." />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">Type</label>
-        <select name="type" defaultValue="alert" className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+        <label className="text-sm font-medium text-foreground/80">Type</label>
+        <select name="type" defaultValue="alert" className="flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <option value="alert">alert</option>
           <option value="silent">silent</option>
           <option value="update">update</option>

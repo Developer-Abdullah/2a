@@ -25,7 +25,7 @@ export default async function SigningQueuePage() {
   }
 
   return (
-    <DashboardShell title="Signing Queue">
+    <DashboardShell title="title.signing_queue">
       <p className="mb-4 text-sm text-slate-500">{items.length} job(s)</p>
       {error ? (
         <p className="text-sm text-red-600">{error}</p>

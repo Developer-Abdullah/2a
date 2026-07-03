@@ -17,7 +17,7 @@ export default async function UsersPage() {
   }
 
   return (
-    <DashboardShell title="Users">
+    <DashboardShell title="title.users">
       <p className="mb-4 text-sm text-slate-500">{items.length} user(s)</p>
       {error ? (
         <p className="text-sm text-red-600">{error}</p>

@@ -22,7 +22,7 @@ export default async function AdminsPage() {
   }
 
   return (
-    <DashboardShell title="Team Members">
+    <DashboardShell title="title.team">
       <p className="mb-4 text-sm text-slate-500">{items.length} platform administrator(s)</p>
       {error ? (
         <p className="text-sm text-red-600">{error}</p>

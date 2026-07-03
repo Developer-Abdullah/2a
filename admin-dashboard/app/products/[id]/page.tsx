@@ -22,7 +22,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <DashboardShell title="تعديل المنتج">
+    <DashboardShell title="title.edit_product">
       <Link href="/products" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowRight className="ml-1 h-4 w-4" /> رجوع للمنتجات
       </Link>

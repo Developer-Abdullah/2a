@@ -21,7 +21,7 @@ export default async function RatingsPage() {
   const max = summary ? Math.max(1, ...Object.values(summary.breakdown)) : 1;
 
   return (
-    <DashboardShell title="Ratings">
+    <DashboardShell title="title.ratings">
       {error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (

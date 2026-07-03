@@ -10,7 +10,7 @@ export default async function NewVersionPage({ params }: { params: Promise<{ id:
   const { id } = await params;
 
   return (
-    <DashboardShell title="Publish Update">
+    <DashboardShell title="title.publish_update">
       <Link href={`/apps/${id}`} className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to app
       </Link>

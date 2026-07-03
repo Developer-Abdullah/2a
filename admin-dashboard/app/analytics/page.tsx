@@ -35,7 +35,7 @@ export default async function AnalyticsPage() {
   const max = ratings ? Math.max(1, ...Object.values(ratings.summary.breakdown)) : 1;
 
   return (
-    <DashboardShell title="Analytics">
+    <DashboardShell title="title.analytics">
       {error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (

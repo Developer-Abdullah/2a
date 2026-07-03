@@ -30,7 +30,7 @@ export default async function AppDetailPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <DashboardShell title="App Details">
+    <DashboardShell title="title.app_details">
       <Link href="/apps" className="mb-6 inline-block text-sm text-slate-500 hover:text-slate-900">
         ← Back to apps
       </Link>

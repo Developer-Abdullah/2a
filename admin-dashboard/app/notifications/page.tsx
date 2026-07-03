@@ -25,7 +25,7 @@ export default async function NotificationsPage() {
   }
 
   return (
-    <DashboardShell title="Notifications">
+    <DashboardShell title="title.notifications">
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>

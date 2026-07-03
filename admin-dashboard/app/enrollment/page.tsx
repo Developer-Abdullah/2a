@@ -22,7 +22,7 @@ export default async function EnrollmentPage() {
   const udid = items.filter((d) => d.enrollment_method === "udid_profile").length;
 
   return (
-    <DashboardShell title="Enrollment">
+    <DashboardShell title="title.enrollment">
       {error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : (

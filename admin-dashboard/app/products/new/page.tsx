@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default function NewProductPage() {
   return (
-    <DashboardShell title="منتج جديد">
+    <DashboardShell title="title.new_product">
       <Link href="/products" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowRight className="ml-1 h-4 w-4" /> رجوع للمنتجات
       </Link>

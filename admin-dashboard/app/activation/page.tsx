@@ -19,7 +19,7 @@ export default async function ActivationPage() {
   }
 
   return (
-    <DashboardShell title="Activation Codes">
+    <DashboardShell title="title.activation_codes">
       <div className="space-y-6">
         <Card>
           <CardHeader>

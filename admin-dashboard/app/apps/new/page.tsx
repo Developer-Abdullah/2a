@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default function NewAppPage() {
   return (
-    <DashboardShell title="New Application">
+    <DashboardShell title="title.new_app">
       <Link href="/apps" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to apps
       </Link>

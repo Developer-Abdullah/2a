@@ -18,7 +18,7 @@ export default async function AuditLogPage() {
   }
 
   return (
-    <DashboardShell title="Audit Log">
+    <DashboardShell title="title.audit">
       <p className="mb-4 text-sm text-slate-500">Immutable record of administrative actions.</p>
       {error ? (
         <p className="text-sm text-red-600">{error}</p>

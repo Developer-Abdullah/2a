@@ -20,7 +20,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
   }
 
   return (
-    <DashboardShell title="User Details">
+    <DashboardShell title="title.user_details">
       <Link href="/users" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to users
       </Link>

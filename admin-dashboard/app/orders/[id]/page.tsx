@@ -1,23 +1,25 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { adminGet } from "@/lib/admin-api";
 import type { OrderDetail } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import ConfirmOrderButton from "@/components/orders/ConfirmOrderButton";
+import { getT } from "@/lib/locale-server";
 
 export const dynamic = "force-dynamic";
 
-const STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
-  pending: { label: "بانتظار الدفع", variant: "warning" },
-  paid: { label: "مدفوع", variant: "default" },
-  failed: { label: "فشل", variant: "danger" },
-  fulfilled: { label: "مكتمل", variant: "success" },
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  pending: "warning",
+  paid: "default",
+  failed: "danger",
+  fulfilled: "success",
 };
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const t = await getT();
 
   let order: OrderDetail | null = null;
   let error = "";
@@ -25,45 +27,43 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     const data = await adminGet<{ order: OrderDetail }>(`/v1/admin/orders/${id}`);
     order = data.order;
   } catch (e) {
-    error = e instanceof Error ? e.message : "تعذّر تحميل الطلب";
+    error = e instanceof Error ? e.message : t("dash.load_error");
   }
 
-  const s = order ? STATUS[order.status] ?? { label: order.status, variant: "muted" as BadgeVariant } : null;
-
   return (
-    <DashboardShell title="تفاصيل الطلب">
-      <Link href="/orders" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
-        <ArrowRight className="ml-1 h-4 w-4" /> رجوع للطلبات
+    <DashboardShell title="title.order_details">
+      <Link href="/orders" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ChevronRight className="h-4 w-4 rtl:rotate-180" /> {t("order.back")}
       </Link>
 
       {error || !order ? (
-        <p className="text-sm text-red-600">{error || "الطلب غير موجود"}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error || t("order.notfound")}</p>
       ) : (
-        <div dir="rtl" className="grid gap-6 text-right lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>الطلب #{order.id.slice(0, 8)}</span>
-                {s ? <Badge variant={s.variant}>{s.label}</Badge> : null}
+                <span>#{order.id.slice(0, 8)}</span>
+                <Badge variant={STATUS_VARIANT[order.status] ?? "muted"}>{t(`orders.status.${order.status}`)}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 text-sm text-slate-600">
+            <CardContent className="space-y-4 text-sm text-muted-foreground">
               <div className="grid grid-cols-2 gap-3">
-                <Info label="البريد" value={order.email} />
-                <Info label="الجوال" value={order.phone || "—"} />
-                <Info label="العملة" value={order.currency} />
-                <Info label="بوابة الدفع" value={order.provider || "—"} />
-                <Info label="التاريخ" value={new Date(order.created_at).toLocaleString("ar-EG")} />
-                <Info label="الإجمالي" value={`${order.total} ${order.currency}`} />
+                <Info label={t("order.email")} value={order.email} />
+                <Info label={t("order.phone")} value={order.phone || "—"} />
+                <Info label={t("order.currency")} value={order.currency} />
+                <Info label={t("order.gateway")} value={order.provider || "—"} />
+                <Info label={t("order.date")} value={new Date(order.created_at).toLocaleString()} />
+                <Info label={t("order.total")} value={`${order.total} ${order.currency}`} />
               </div>
 
               <div>
-                <h3 className="mb-2 font-semibold text-slate-900">العناصر</h3>
+                <h3 className="mb-2 font-semibold text-foreground">{t("order.items")}</h3>
                 <ul className="space-y-1">
                   {order.items.map((it) => (
-                    <li key={it.id} className="flex items-center justify-between border-b border-slate-100 py-1">
+                    <li key={it.id} className="flex items-center justify-between border-b border-border py-1">
                       <span>{it.product_name} × {it.qty}</span>
-                      <span className="font-medium text-slate-800">{it.unit_amount * it.qty} {it.currency}</span>
+                      <span className="font-medium text-foreground/90">{it.unit_amount * it.qty} {it.currency}</span>
                     </li>
                   ))}
                 </ul>
@@ -73,34 +73,30 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
           <Card className="h-fit">
             <CardHeader>
-              <CardTitle>أكواد التفعيل</CardTitle>
+              <CardTitle>{t("order.codes_title")}</CardTitle>
             </CardHeader>
-            <CardContent dir="rtl" className="space-y-4 text-right">
+            <CardContent className="space-y-4">
               {order.status !== "fulfilled" && (
-                <div className="space-y-3 rounded-lg bg-amber-50 p-3">
+                <div className="space-y-3 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
                   {order.has_payment_proof ? (
                     <a href={`/api/order-proof/${order.id}`} target="_blank" rel="noopener noreferrer" className="block">
-                      <div className="mb-1 text-xs font-medium text-emerald-700">إثبات التحويل المرفوع (اضغط للتكبير):</div>
-                      <img src={`/api/order-proof/${order.id}`} alt="إثبات التحويل" className="max-h-56 w-full rounded-lg object-contain ring-1 ring-slate-200" />
+                      <div className="mb-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("order.proof_uploaded")}</div>
+                      <img src={`/api/order-proof/${order.id}`} alt="proof" className="max-h-56 w-full rounded-lg object-contain ring-1 ring-border" />
                     </a>
                   ) : (
-                    <p className="text-sm text-amber-800">لم يرفع العميل إثبات تحويل بعد.</p>
+                    <p className="text-sm text-amber-800 dark:text-amber-300">{t("order.no_proof")}</p>
                   )}
-                  <p className="text-sm text-amber-800">
-                    بعد التحقق من الدفع، اضغط لتأكيد الطلب وإصدار الأكواد للعميل.
-                  </p>
+                  <p className="text-sm text-amber-800 dark:text-amber-300">{t("order.confirm_hint")}</p>
                   <ConfirmOrderButton id={order.id} />
                 </div>
               )}
 
               {order.codes.length === 0 ? (
-                order.status === "fulfilled" ? (
-                  <p className="text-sm text-slate-500">لا توجد أكواد لهذا الطلب.</p>
-                ) : null
+                order.status === "fulfilled" ? <p className="text-sm text-muted-foreground">{t("order.no_codes")}</p> : null
               ) : (
                 <ul className="space-y-2">
                   {order.codes.map((code) => (
-                    <li key={code} className="rounded-lg bg-slate-100 px-3 py-2 font-mono text-sm font-bold tracking-wider text-slate-900">
+                    <li key={code} className="rounded-lg bg-muted px-3 py-2 font-mono text-sm font-bold tracking-wider text-foreground">
                       {code}
                     </li>
                   ))}
@@ -117,8 +113,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className="font-medium text-slate-800">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="font-medium text-foreground/90">{value}</div>
     </div>
   );
 }

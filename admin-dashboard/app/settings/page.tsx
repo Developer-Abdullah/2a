@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
 
   return (
-    <DashboardShell title="Settings">
+    <DashboardShell title="title.settings">
       <div className="grid max-w-3xl gap-6">
         <Card>
           <CardHeader>

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default function NewNotificationPage() {
   return (
-    <DashboardShell title="Broadcast Notification">
+    <DashboardShell title="title.broadcast">
       <Link href="/notifications" className="mb-6 inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to notifications
       </Link>
