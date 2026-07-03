@@ -55,4 +55,5 @@ export interface Order {
   fulfilled_at?: string | null;
   items: OrderItem[];
   codes: string[];
+  has_payment_proof: boolean;
 }

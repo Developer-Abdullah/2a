@@ -25,6 +25,7 @@ type AdminShopStore interface {
 	SetProductImage(ctx context.Context, tenantID uuid.UUID, id, key string) error
 	ListOrders(ctx context.Context, tenantID uuid.UUID, status string, limit int) ([]domain.OrderSummary, error)
 	GetOrder(ctx context.Context, tenantID uuid.UUID, id string) (*domain.Order, error)
+	OrderProofKey(ctx context.Context, tenantID uuid.UUID, orderID string) (string, error)
 }
 
 // OrderConfirmer manually fulfills an order after the admin verifies an offline (manual) payment.
@@ -234,6 +235,35 @@ func (ctrl *AdminShopController) ConfirmOrder(c *gin.Context) {
 		return
 	}
 	adminOK(c, gin.H{"order": order})
+}
+
+// OrderProof streams the customer's uploaded transfer screenshot for admin review.
+func (ctrl *AdminShopController) OrderProof(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		adminFail(c, http.StatusBadRequest, "tenant context missing")
+		return
+	}
+	if ctrl.s3 == nil {
+		adminFail(c, http.StatusServiceUnavailable, "image storage not configured")
+		return
+	}
+	key, err := ctrl.store.OrderProofKey(c.Request.Context(), t.ID, c.Param("id"))
+	if err != nil || key == "" {
+		adminFail(c, http.StatusNotFound, "no proof for this order")
+		return
+	}
+	body, contentType, err := ctrl.s3.GetObjectStream(c.Request.Context(), key)
+	if err != nil {
+		adminFail(c, http.StatusNotFound, "proof not found")
+		return
+	}
+	defer body.Close()
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	c.Header("Cache-Control", "private, max-age=60")
+	c.DataFromReader(http.StatusOK, -1, contentType, body, nil)
 }
 
 // GetOrder returns an order with items and minted codes.

@@ -77,6 +77,9 @@ func SetupRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client, pri
 	shopGroup.POST("/orders/:id/checkout", shopController.StartCheckout)
 	shopGroup.GET("/orders", shopController.MyOrders)
 	shopGroup.GET("/orders/:id", shopController.GetOrder)
+	// Manual-payment proof: customers attach a transfer screenshot; rate-limited to blunt abuse.
+	shopGroup.POST("/orders/:id/proof", ratelimit.Middleware(5, time.Minute), shopController.UploadOrderProof)
+	shopGroup.GET("/orders/:id/proof", shopController.OrderProof)
 
 	v1 := router.Group("/v1")
 	v1.Use(tenant.ResolverMiddleware(tenantRepo))

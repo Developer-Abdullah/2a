@@ -77,6 +77,12 @@ func (r *fakeRepo) ProductImageKey(context.Context, uuid.UUID, string) (string, 
 func (r *fakeRepo) ListOrdersByEmail(context.Context, uuid.UUID, string) ([]domain.OrderSummary, error) {
 	return nil, nil
 }
+func (r *fakeRepo) SetOrderProof(context.Context, uuid.UUID, uuid.UUID, string) error {
+	return nil
+}
+func (r *fakeRepo) OrderProofKey(context.Context, uuid.UUID, uuid.UUID) (string, error) {
+	return "", nil
+}
 
 func TestProviderForCurrency(t *testing.T) {
 	cases := map[string]struct {

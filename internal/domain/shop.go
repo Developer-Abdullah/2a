@@ -64,6 +64,8 @@ type Order struct {
 	FulfilledAt *time.Time  `db:"fulfilled_at" json:"fulfilled_at,omitempty"`
 	Items       []OrderItem `db:"-" json:"items"`
 	Codes       []string    `db:"-" json:"codes"`
+	// HasPaymentProof reports whether a transfer screenshot was uploaded (the key itself stays private).
+	HasPaymentProof bool `db:"-" json:"has_payment_proof"`
 }
 
 // CartLine is one requested product+quantity in a checkout request.

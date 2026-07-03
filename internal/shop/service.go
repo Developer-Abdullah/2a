@@ -47,6 +47,9 @@ type Repository interface {
 	ListProductReviews(ctx context.Context, tenantID uuid.UUID, slug string, limit int) ([]domain.ProductReview, error)
 	ProductImageKey(ctx context.Context, tenantID uuid.UUID, slug string) (string, error)
 	ListOrdersByEmail(ctx context.Context, tenantID uuid.UUID, email string) ([]domain.OrderSummary, error)
+	// SetOrderProof / OrderProofKey manage the customer's uploaded transfer-screenshot key.
+	SetOrderProof(ctx context.Context, tenantID, orderID uuid.UUID, key string) error
+	OrderProofKey(ctx context.Context, tenantID, orderID uuid.UUID) (string, error)
 }
 
 // FulfillmentNotifier is notified after an order is fulfilled (e.g. to email the codes). It is
@@ -108,6 +111,14 @@ func (s *Service) ProductImageKey(ctx context.Context, tenantID uuid.UUID, slug 
 
 func (s *Service) OrdersByEmail(ctx context.Context, tenantID uuid.UUID, email string) ([]domain.OrderSummary, error) {
 	return s.repo.ListOrdersByEmail(ctx, tenantID, strings.TrimSpace(email))
+}
+
+func (s *Service) SetOrderProof(ctx context.Context, tenantID, orderID uuid.UUID, key string) error {
+	return s.repo.SetOrderProof(ctx, tenantID, orderID, key)
+}
+
+func (s *Service) OrderProofKey(ctx context.Context, tenantID, orderID uuid.UUID) (string, error) {
+	return s.repo.OrderProofKey(ctx, tenantID, orderID)
 }
 
 // ConfirmOrder manually fulfills an order (admin-confirmed payment): it mints the codes and, on a

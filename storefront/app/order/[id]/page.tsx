@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, Clock, XCircle, Wallet, MessageCircle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { fetchOrder } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { paymentInfo } from "@/lib/payment";
 import { OrderCodes } from "@/components/order-codes";
 import { OrderPoller } from "@/components/order-poller";
+import { PaymentPanel } from "@/components/payment-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,19 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
           {fulfilled && <OrderCodes codes={order.codes} />}
 
-          {pending && <PaymentPanel currency={order.currency} orderId={order.id} total={formatMoney(order.total, order.currency)} />}
+          {pending && (() => {
+            const pay = paymentInfo(order.currency);
+            return (
+              <PaymentPanel
+                orderId={order.id}
+                total={formatMoney(order.total, order.currency)}
+                methods={pay.methods}
+                note={pay.note}
+                whatsapp={pay.whatsapp}
+                hasProof={order.has_payment_proof}
+              />
+            );
+          })()}
 
           <div className="flex justify-center">
             <Link href="/" className="btn-ghost">العودة للرئيسية</Link>
@@ -78,37 +91,3 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   );
 }
 
-// PaymentPanel shows manual payment instructions for a pending order: how to pay for the selected
-// currency, the order id to use as a transfer reference, and a WhatsApp button to send proof.
-function PaymentPanel({ currency, orderId, total }: { currency: string; orderId: string; total: string }) {
-  const { instructions, whatsapp } = paymentInfo(currency);
-  const waText = encodeURIComponent(`مرحبًا، أودّ تأكيد دفع الطلب رقم ${orderId} بقيمة ${total}.`);
-  const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${waText}` : "";
-
-  return (
-    <div className="rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50 p-5">
-      <h2 className="flex items-center gap-2 font-extrabold text-amber-900">
-        <Wallet className="h-5 w-5" /> تعليمات الدفع
-      </h2>
-      <p className="mt-3 text-sm leading-7 text-amber-900">{instructions}</p>
-      <div className="mt-3 rounded-xl bg-white p-3 text-sm ring-1 ring-amber-100">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">المبلغ</span>
-          <span className="font-extrabold text-ink">{total}</span>
-        </div>
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-slate-500">رقم الطلب (المرجع)</span>
-          <span className="font-mono text-slate-700">{orderId}</span>
-        </div>
-      </div>
-      {waLink && (
-        <a href={waLink} target="_blank" rel="noopener noreferrer" className="btn-primary mt-4 w-full">
-          <MessageCircle className="h-5 w-5" /> أرسل إثبات الدفع عبر واتساب
-        </a>
-      )}
-      <p className="mt-3 text-center text-xs text-amber-700/80">
-        بعد تأكيد دفعك سيظهر كود التفعيل هنا تلقائيًا. أبقِ الصفحة مفتوحة.
-      </p>
-    </div>
-  );
-}

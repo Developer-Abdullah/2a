@@ -91,6 +91,7 @@ func SetupAdminRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client
 	protected.POST("/products/:id/image", shopController.UploadImage)
 	protected.GET("/orders", shopController.ListOrders)
 	protected.GET("/orders/:id", shopController.GetOrder)
+	protected.GET("/orders/:id/proof", shopController.OrderProof)
 	protected.POST("/orders/:id/confirm", shopController.ConfirmOrder)
 	protected.GET("/ratings", ratingController.List)
 	protected.POST("/notifications", notificationController.Send)

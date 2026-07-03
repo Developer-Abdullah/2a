@@ -78,8 +78,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <CardContent dir="rtl" className="space-y-4 text-right">
               {order.status !== "fulfilled" && (
                 <div className="space-y-3 rounded-lg bg-amber-50 p-3">
+                  {order.has_payment_proof ? (
+                    <a href={`/api/order-proof/${order.id}`} target="_blank" rel="noopener noreferrer" className="block">
+                      <div className="mb-1 text-xs font-medium text-emerald-700">إثبات التحويل المرفوع (اضغط للتكبير):</div>
+                      <img src={`/api/order-proof/${order.id}`} alt="إثبات التحويل" className="max-h-56 w-full rounded-lg object-contain ring-1 ring-slate-200" />
+                    </a>
+                  ) : (
+                    <p className="text-sm text-amber-800">لم يرفع العميل إثبات تحويل بعد.</p>
+                  )}
                   <p className="text-sm text-amber-800">
-                    الطلب بانتظار تأكيد الدفع. بعد استلام المبلغ يدويًا، اضغط لتأكيد الطلب وإصدار الأكواد للعميل.
+                    بعد التحقق من الدفع، اضغط لتأكيد الطلب وإصدار الأكواد للعميل.
                   </p>
                   <ConfirmOrderButton id={order.id} />
                 </div>

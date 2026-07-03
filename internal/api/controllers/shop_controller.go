@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -147,6 +148,102 @@ func (ctrl *ShopController) SubmitRating(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"submitted": true})
+}
+
+// UploadOrderProof stores the customer's transfer-screenshot (multipart "file") for a manual payment
+// and links it to the order so the admin can review it before confirming.
+func (ctrl *ShopController) UploadOrderProof(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	if ctrl.s3 == nil {
+		response.Fail(c, http.StatusServiceUnavailable, "storage_unavailable", "upload storage not configured")
+		return
+	}
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid_id", "invalid order id")
+		return
+	}
+	// Only orders that exist accept a proof; fetch also confirms tenant scoping.
+	order, err := ctrl.svc.GetOrder(c.Request.Context(), t.ID, orderID)
+	if err != nil {
+		response.Fail(c, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	if order.Status == "failed" {
+		response.Fail(c, http.StatusBadRequest, "order_closed", "order is closed")
+		return
+	}
+
+	header, err := c.FormFile("file")
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "no_file", "no file uploaded")
+		return
+	}
+	if header.Size > 8<<20 { // 8 MiB cap
+		response.Fail(c, http.StatusRequestEntityTooLarge, "too_large", "image too large (max 8MB)")
+		return
+	}
+	contentType := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "image/") {
+		response.Fail(c, http.StatusBadRequest, "not_image", "only images are accepted")
+		return
+	}
+	file, err := header.Open()
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "read_failed", "cannot read upload")
+		return
+	}
+	defer file.Close()
+
+	key := fmt.Sprintf("%s/payment-proofs/%s/%s", t.ID.String(), orderID, uuid.NewString())
+	if err := ctrl.s3.PutObjectStream(c.Request.Context(), key, file, contentType); err != nil {
+		response.Fail(c, http.StatusInternalServerError, "store_failed", "failed to store image")
+		return
+	}
+	if err := ctrl.svc.SetOrderProof(c.Request.Context(), t.ID, orderID, key); err != nil {
+		response.Fail(c, http.StatusInternalServerError, "save_failed", "failed to save proof")
+		return
+	}
+	response.Success(c, gin.H{"uploaded": true})
+}
+
+// OrderProof streams the uploaded transfer screenshot for an order. The order id (an unguessable
+// UUID) is the access token, same as the codes shown on the order page.
+func (ctrl *ShopController) OrderProof(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	if ctrl.s3 == nil {
+		response.Fail(c, http.StatusServiceUnavailable, "storage_unavailable", "storage not configured")
+		return
+	}
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid_id", "invalid order id")
+		return
+	}
+	key, err := ctrl.svc.OrderProofKey(c.Request.Context(), t.ID, orderID)
+	if err != nil || key == "" {
+		response.Fail(c, http.StatusNotFound, "no_proof", "no proof for this order")
+		return
+	}
+	body, contentType, err := ctrl.s3.GetObjectStream(c.Request.Context(), key)
+	if err != nil {
+		response.Fail(c, http.StatusNotFound, "no_proof", "proof not found")
+		return
+	}
+	defer body.Close()
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	c.Header("Cache-Control", "private, max-age=60")
+	c.DataFromReader(http.StatusOK, -1, contentType, body, nil)
 }
 
 // MyOrders lists a customer's orders by email (order tracking). Returns summaries only; codes remain

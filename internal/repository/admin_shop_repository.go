@@ -288,16 +288,21 @@ func (r *adminShopRepo) GetOrder(ctx context.Context, tenantID uuid.UUID, orderI
 	}
 	q := postgres.QuoteIdentifier(schema)
 
-	var o domain.Order
+	var (
+		o        domain.Order
+		proofKey string
+	)
 	err = r.db.QueryRowxContext(ctx, fmt.Sprintf(`
 		SELECT id, email, COALESCE(phone,''), currency, subtotal, total, status,
-			COALESCE(provider,''), COALESCE(provider_ref,''), created_at, paid_at, fulfilled_at
+			COALESCE(provider,''), COALESCE(provider_ref,''), COALESCE(payment_proof_s3_key,''),
+			created_at, paid_at, fulfilled_at
 		FROM %s.orders WHERE id = $1
 	`, q), orderID).Scan(&o.ID, &o.Email, &o.Phone, &o.Currency, &o.Subtotal, &o.Total, &o.Status,
-		&o.Provider, &o.ProviderRef, &o.CreatedAt, &o.PaidAt, &o.FulfilledAt)
+		&o.Provider, &o.ProviderRef, &proofKey, &o.CreatedAt, &o.PaidAt, &o.FulfilledAt)
 	if err != nil {
 		return nil, err
 	}
+	o.HasPaymentProof = proofKey != ""
 	if err := r.db.SelectContext(ctx, &o.Items, fmt.Sprintf(`
 		SELECT id, product_id, product_name, qty, unit_amount, currency
 		FROM %s.order_items WHERE order_id = $1 ORDER BY product_name
@@ -312,6 +317,22 @@ func (r *adminShopRepo) GetOrder(ctx context.Context, tenantID uuid.UUID, orderI
 	}
 	o.Codes = codes
 	return &o, nil
+}
+
+// OrderProofKey returns the object key of an order's uploaded payment screenshot ("" when none).
+func (r *adminShopRepo) OrderProofKey(ctx context.Context, tenantID uuid.UUID, orderID string) (string, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return "", err
+	}
+	var key string
+	err = r.db.GetContext(ctx, &key, fmt.Sprintf(`
+		SELECT COALESCE(payment_proof_s3_key,'') FROM %s.orders WHERE id = $1
+	`, postgres.QuoteIdentifier(schema)), orderID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return key, err
 }
 
 func (r *adminShopRepo) tenantSchema(ctx context.Context, tenantID uuid.UUID) (string, error) {
