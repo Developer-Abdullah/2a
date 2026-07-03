@@ -107,6 +107,14 @@ type ProductReview struct {
 	CreatedAt string `db:"created_at" json:"created_at"`
 }
 
+// InstallableApp is the signed "container" app the storefront offers for OTA install after a code is
+// activated. VersionID feeds the /v1/install/:version_id/manifest.plist OTA manifest.
+type InstallableApp struct {
+	Name      string `db:"name" json:"name"`
+	VersionID string `db:"version_id" json:"version_id"`
+	Version   string `db:"version" json:"version"`
+}
+
 // CodeStatus is the read-only status of an activation code, shown on the storefront activation page
 // WITHOUT consuming a device slot.
 type CodeStatus struct {

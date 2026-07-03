@@ -292,6 +292,32 @@ func (ctrl *ShopController) ActivationStatus(c *gin.Context) {
 	response.Success(c, gin.H{"status": status})
 }
 
+// AppInfo returns the storefront's installable "container" app and the OTA manifest URL the device
+// feeds to itms-services://. ready=false when no signed app is published yet.
+func (ctrl *ShopController) AppInfo(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	app, err := ctrl.svc.InstallableApp(c.Request.Context(), t.ID)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "app_lookup_failed", "could not load app")
+		return
+	}
+	if app == nil {
+		response.Success(c, gin.H{"ready": false})
+		return
+	}
+	manifestURL := absoluteBaseURL(c) + "/v1/install/" + app.VersionID + "/manifest.plist"
+	response.Success(c, gin.H{
+		"ready":        true,
+		"name":         app.Name,
+		"version":      app.Version,
+		"manifest_url": manifestURL,
+	})
+}
+
 // hashIP keeps raw IPs out of the ratings table while preserving the daily-uniqueness key.
 func hashIP(ip string) string {
 	sum := sha256.Sum256([]byte(ip))

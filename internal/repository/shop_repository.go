@@ -516,6 +516,32 @@ func (r *shopRepo) CodeStatus(ctx context.Context, tenantID uuid.UUID, code stri
 	return &st, nil
 }
 
+// InstallableApp returns the newest published app that has a signed version (the storefront's OTA
+// install target). Returns nil (no error) when nothing is installable yet.
+func (r *shopRepo) InstallableApp(ctx context.Context, tenantID uuid.UUID) (*domain.InstallableApp, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	q := postgres.QuoteIdentifier(schema)
+	var app domain.InstallableApp
+	err = r.db.GetContext(ctx, &app, fmt.Sprintf(`
+		SELECT a.name AS name, v.id::text AS version_id, v.version AS version
+		FROM %[1]s.applications a
+		JOIN %[1]s.application_versions v ON v.application_id = a.id
+		WHERE a.is_published = true AND v.signing_status = 'signed' AND v.signed_ipa_s3_key IS NOT NULL
+		ORDER BY v.created_at DESC
+		LIMIT 1
+	`, q))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &app, nil
+}
+
 func (r *shopRepo) tenantSchema(ctx context.Context, tenantID uuid.UUID) (string, error) {
 	var schemaName string
 	if err := r.db.GetContext(ctx, &schemaName, `SELECT schema_name FROM public.tenants WHERE id = $1`, tenantID); err != nil {

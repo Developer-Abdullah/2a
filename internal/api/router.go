@@ -82,6 +82,7 @@ func SetupRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client, pri
 	shopGroup.GET("/orders/:id/proof", shopController.OrderProof)
 	// Read-only activation-code status lookup (does not consume a device); rate-limited vs enumeration.
 	shopGroup.GET("/activation", ratelimit.Middleware(15, time.Minute), shopController.ActivationStatus)
+	shopGroup.GET("/app", shopController.AppInfo)
 
 	v1 := router.Group("/v1")
 	v1.Use(tenant.ResolverMiddleware(tenantRepo))
