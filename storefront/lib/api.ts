@@ -40,4 +40,15 @@ export async function fetchOrder(id: string): Promise<Order | null> {
   return data?.order ?? null;
 }
 
+export interface Review {
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
+export async function fetchReviews(slug: string): Promise<Review[]> {
+  const data = await apiGet<{ reviews: Review[] }>(`/shop/products/${encodeURIComponent(slug)}/reviews`);
+  return data?.reviews ?? [];
+}
+
 export { BACKEND, STORE_SLUG };

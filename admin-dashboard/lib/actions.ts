@@ -101,10 +101,12 @@ export interface ProductFormInput {
   features: string[];
   terms: string[];
   video_url: string;
+  image_s3_key: string;
   is_published: boolean;
   sort_order: number;
   prices: ProductPriceInput[];
 }
+
 
 function actionError(e: unknown, fallback: string): ActionState {
   return { ok: false, error: e instanceof Error ? e.message : fallback };

@@ -92,9 +92,17 @@ type ProductInput struct {
 	Features         []string     `json:"features"`
 	Terms            []string     `json:"terms"`
 	VideoURL         string       `json:"video_url"`
+	ImageS3Key       string       `json:"image_s3_key"`
 	IsPublished      bool         `json:"is_published"`
 	SortOrder        int          `json:"sort_order"`
 	Prices           []PriceInput `json:"prices"`
+}
+
+// ProductReview is a single public review shown on a product page.
+type ProductReview struct {
+	Rating    int    `db:"rating" json:"rating"`
+	Comment   string `db:"comment" json:"comment"`
+	CreatedAt string `db:"created_at" json:"created_at"`
 }
 
 // OrderSummary is the admin list row for an order.

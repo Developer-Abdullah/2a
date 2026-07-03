@@ -34,6 +34,21 @@ defer file.Close()
 _, err = io.Copy(file, out.Body)
 return err
 }
+// PutObjectStream uploads an object from a reader (e.g. a multipart upload streamed through the API).
+// The reader should be seekable (multipart.File is) so the SDK can sign it without buffering.
+func (s *S3Client) PutObjectStream(ctx context.Context, key string, body io.Reader, contentType string) error {
+_, err := s.client.PutObject(ctx, &s3.PutObjectInput{ Bucket: aws.String(s.bucket), Key: aws.String(key), Body: body, ContentType: aws.String(contentType) })
+return err
+}
+// GetObjectStream opens an object for reading and returns its body and content type. The caller must
+// Close the returned reader. Used to proxy product images through the API.
+func (s *S3Client) GetObjectStream(ctx context.Context, key string) (io.ReadCloser, string, error) {
+out, err := s.client.GetObject(ctx, &s3.GetObjectInput{ Bucket: aws.String(s.bucket), Key: aws.String(key) })
+if err != nil { return nil, "", err }
+ct := ""
+if out.ContentType != nil { ct = *out.ContentType }
+return out.Body, ct, nil
+}
 func (s *S3Client) GeneratePresignedURL(ctx context.Context, key string, lifetime time.Duration) (string, error) {
 req, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{ Bucket: aws.String(s.bucket), Key: aws.String(key) }, s3.WithPresignExpires(lifetime))
 if err != nil { return "", err }

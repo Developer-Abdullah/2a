@@ -18,7 +18,7 @@ export function Header() {
         <nav className="hidden items-center gap-6 text-sm font-semibold text-white/90 md:flex">
           <Link href="/" className="hover:text-white">الرئيسية</Link>
           <Link href="/#products" className="hover:text-white">الباقات</Link>
-          <Link href="/#features" className="hover:text-white">لماذا نحن</Link>
+          <Link href="/orders" className="hover:text-white">طلباتي</Link>
           <Link href="/#reviews" className="hover:text-white">التقييمات</Link>
         </nav>
 

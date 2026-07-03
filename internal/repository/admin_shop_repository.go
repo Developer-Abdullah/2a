@@ -145,12 +145,12 @@ func (r *adminShopRepo) CreateProduct(ctx context.Context, tenantID uuid.UUID, i
 	if err := tx.QueryRowxContext(ctx, `
 		INSERT INTO products
 			(slug, name, subtitle, description, device_type, subscription_days, codes_per_unit,
-			 features, terms, video_url, is_published, sort_order)
+			 features, terms, video_url, image_s3_key, is_published, sort_order)
 		VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''), $5::allowed_device_type, $6, $7,
-			$8::jsonb, $9::jsonb, NULLIF($10,''), $11, $12)
+			$8::jsonb, $9::jsonb, NULLIF($10,''), NULLIF($11,''), $12, $13)
 		RETURNING id::text
 	`, in.Slug, in.Name, in.Subtitle, in.Description, deviceType, normalizeInt(in.SubscriptionDays, 365),
-		normalizeInt(in.CodesPerUnit, 1), features, terms, in.VideoURL, in.IsPublished, in.SortOrder).Scan(&id); err != nil {
+		normalizeInt(in.CodesPerUnit, 1), features, terms, in.VideoURL, in.ImageS3Key, in.IsPublished, in.SortOrder).Scan(&id); err != nil {
 		return "", err
 	}
 
@@ -188,10 +188,10 @@ func (r *adminShopRepo) UpdateProduct(ctx context.Context, tenantID uuid.UUID, i
 			slug = $2, name = $3, subtitle = NULLIF($4,''), description = NULLIF($5,''),
 			device_type = $6::allowed_device_type, subscription_days = $7, codes_per_unit = $8,
 			features = $9::jsonb, terms = $10::jsonb, video_url = NULLIF($11,''),
-			is_published = $12, sort_order = $13, updated_at = NOW()
+			image_s3_key = NULLIF($12,''), is_published = $13, sort_order = $14, updated_at = NOW()
 		WHERE id = $1
 	`, id, in.Slug, in.Name, in.Subtitle, in.Description, deviceType, normalizeInt(in.SubscriptionDays, 365),
-		normalizeInt(in.CodesPerUnit, 1), features, terms, in.VideoURL, in.IsPublished, in.SortOrder)
+		normalizeInt(in.CodesPerUnit, 1), features, terms, in.VideoURL, in.ImageS3Key, in.IsPublished, in.SortOrder)
 	if err != nil {
 		return err
 	}
@@ -218,6 +218,24 @@ func (r *adminShopRepo) SetPublished(ctx context.Context, tenantID uuid.UUID, id
 	res, err := r.db.ExecContext(ctx, fmt.Sprintf(`
 		UPDATE %s.products SET is_published = $2, updated_at = NOW() WHERE id = $1
 	`, postgres.QuoteIdentifier(schema)), id, published)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// SetProductImage stores the object-storage key of a product's image.
+func (r *adminShopRepo) SetProductImage(ctx context.Context, tenantID uuid.UUID, id, key string) error {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	res, err := r.db.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s.products SET image_s3_key = NULLIF($2,''), updated_at = NOW() WHERE id = $1
+	`, postgres.QuoteIdentifier(schema)), id, key)
 	if err != nil {
 		return err
 	}

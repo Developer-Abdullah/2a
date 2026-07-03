@@ -13,13 +13,24 @@ function DeviceIcon({ type }: { type: string }) {
 export function ProductCard({ product }: { product: Product }) {
   return (
     <Link href={`/${product.slug}`} className="card group flex flex-col overflow-hidden transition hover:-translate-y-1 hover:shadow-lg">
-      <div className="brand-gradient flex h-28 items-center justify-between px-5 text-white">
-        <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 text-sm font-bold">
-          <DeviceIcon type={product.device_type} />
-          <span>{product.device_type === "ipad" ? "آيباد" : product.device_type === "iphone" ? "آيفون" : "آيفون / آيباد"}</span>
+      {product.image_url ? (
+        <div className="relative h-40 overflow-hidden">
+          <img src={`/api/product-image/${product.slug}`} alt={product.name} className="h-full w-full object-cover" />
+          <div className="absolute top-2 left-2 rounded-xl bg-amber-400 px-3 py-1 text-xs font-extrabold text-ink">تفعيل فوري</div>
+          <div className="absolute top-2 right-2 flex items-center gap-1 rounded-xl bg-black/45 px-2.5 py-1 text-xs font-bold text-white">
+            <DeviceIcon type={product.device_type} />
+            <span>{product.device_type === "ipad" ? "آيباد" : product.device_type === "iphone" ? "آيفون" : "آيفون / آيباد"}</span>
+          </div>
         </div>
-        <div className="rounded-xl bg-amber-400 px-3 py-1 text-xs font-extrabold text-ink">تفعيل فوري</div>
-      </div>
+      ) : (
+        <div className="brand-gradient flex h-28 items-center justify-between px-5 text-white">
+          <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 text-sm font-bold">
+            <DeviceIcon type={product.device_type} />
+            <span>{product.device_type === "ipad" ? "آيباد" : product.device_type === "iphone" ? "آيفون" : "آيفون / آيباد"}</span>
+          </div>
+          <div className="rounded-xl bg-amber-400 px-3 py-1 text-xs font-extrabold text-ink">تفعيل فوري</div>
+        </div>
+      )}
       <div className="flex flex-1 flex-col gap-3 p-5">
         <h3 className="text-lg font-extrabold leading-7 text-ink group-hover:text-brand-700">{product.name}</h3>
         <p className="line-clamp-2 text-sm text-slate-500">{product.subtitle || product.description}</p>

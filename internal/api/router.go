@@ -48,7 +48,7 @@ func SetupRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client, pri
 	// Deliver activation codes by email on fulfillment (best-effort; the code is also shown on the
 	// order page). The worker sends via SMTP when configured, otherwise logs.
 	shopSvc.SetNotifier(notify.NewOrderEmailer(queue))
-	shopController := controllers.NewShopController(shopSvc, storefrontURL)
+	shopController := controllers.NewShopController(shopSvc, s3, storefrontURL)
 	router.POST("/shop/webhook/:provider", controllers.NewShopWebhookController(shopSvc, tenantRepo, storeSlug).Handle)
 	enrollmentRepo := enrollment.NewSessionRepository(db)
 	certProvider := service.NewEnrollmentCertProvider(db.DB, s3, make([]byte, 32))
@@ -69,8 +69,13 @@ func SetupRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client, pri
 	shopGroup.Use(tenant.ResolverMiddleware(tenantRepo))
 	shopGroup.GET("/products", shopController.ListProducts)
 	shopGroup.GET("/products/:slug", shopController.GetProduct)
+	shopGroup.GET("/products/:slug/image", shopController.ProductImage)
+	shopGroup.GET("/products/:slug/reviews", shopController.Reviews)
+	// Ratings are guessable-free public writes — cap per IP to blunt spam.
+	shopGroup.POST("/products/:slug/ratings", ratelimit.Middleware(5, time.Minute), shopController.SubmitRating)
 	shopGroup.POST("/orders", shopController.CreateOrder)
 	shopGroup.POST("/orders/:id/checkout", shopController.StartCheckout)
+	shopGroup.GET("/orders", shopController.MyOrders)
 	shopGroup.GET("/orders/:id", shopController.GetOrder)
 
 	v1 := router.Group("/v1")

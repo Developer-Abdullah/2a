@@ -65,6 +65,18 @@ func (r *fakeRepo) FulfillByID(context.Context, uuid.UUID, uuid.UUID) (*domain.O
 	r.fulfillCalls++
 	return r.order, r.fulfillApplied, nil
 }
+func (r *fakeRepo) SubmitProductRating(context.Context, uuid.UUID, string, *string, int, *string, string) error {
+	return nil
+}
+func (r *fakeRepo) ListProductReviews(context.Context, uuid.UUID, string, int) ([]domain.ProductReview, error) {
+	return nil, nil
+}
+func (r *fakeRepo) ProductImageKey(context.Context, uuid.UUID, string) (string, error) {
+	return "", nil
+}
+func (r *fakeRepo) ListOrdersByEmail(context.Context, uuid.UUID, string) ([]domain.OrderSummary, error) {
+	return nil, nil
+}
 
 func TestProviderForCurrency(t *testing.T) {
 	cases := map[string]struct {

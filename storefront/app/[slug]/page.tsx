@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Check, FileText, ShoppingBag } from "lucide-react";
-import { fetchProduct } from "@/lib/api";
+import { fetchProduct, fetchReviews } from "@/lib/api";
 import { BuyBox } from "@/components/buy-box";
 import { Stars } from "@/components/stars";
+import { RatingForm } from "@/components/rating-form";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const product = await fetchProduct(slug);
   if (!product) notFound();
+  const reviews = await fetchReviews(slug);
 
   const deviceLabel =
     product.device_type === "ipad" ? "آيباد" : product.device_type === "iphone" ? "آيفون" : "آيفون / آيباد";
@@ -26,12 +28,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Main */}
         <div className="lg:col-span-2">
-          <div className="brand-gradient flex h-44 items-center justify-center rounded-3xl text-white">
-            <div className="text-center">
-              <ShoppingBag className="mx-auto h-12 w-12" />
-              <p className="mt-2 text-lg font-extrabold">{deviceLabel} · تفعيل فوري</p>
+          {product.image_url ? (
+            <div className="h-72 overflow-hidden rounded-3xl">
+              <img src={`/api/product-image/${product.slug}`} alt={product.name} className="h-full w-full object-cover" />
             </div>
-          </div>
+          ) : (
+            <div className="brand-gradient flex h-44 items-center justify-center rounded-3xl text-white">
+              <div className="text-center">
+                <ShoppingBag className="mx-auto h-12 w-12" />
+                <p className="mt-2 text-lg font-extrabold">{deviceLabel} · تفعيل فوري</p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-extrabold text-ink md:text-3xl">{product.name}</h1>
@@ -87,6 +95,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </ul>
             </div>
           )}
+
+          {/* Reviews */}
+          <div className="mt-10">
+            <h2 className="text-lg font-extrabold text-ink">التقييمات ({product.rating_count})</h2>
+            {reviews.length > 0 ? (
+              <ul className="mt-4 space-y-3">
+                {reviews.map((r, i) => (
+                  <li key={i} className="card p-4">
+                    <Stars value={r.rating} />
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{r.comment}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-slate-400">كن أول من يقيّم هذا المنتج.</p>
+            )}
+            <div className="mt-6">
+              <RatingForm slug={product.slug} />
+            </div>
+          </div>
         </div>
 
         {/* Buy box */}

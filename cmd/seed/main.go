@@ -348,6 +348,9 @@ func seedProducts(ctx context.Context, tx *sqlx.Tx) {
 
 	for _, p := range products {
 		var productID string
+		// rating_avg/rating_count are set only on initial insert (as starting display values). They are
+		// NOT overwritten on re-seed, because a DB trigger keeps them in sync with real product_ratings —
+		// re-clobbering them here would wipe genuine customer ratings.
 		if err := tx.QueryRowxContext(ctx, `
 			INSERT INTO products
 				(slug, name, subtitle, description, device_type, subscription_days,
@@ -357,8 +360,7 @@ func seedProducts(ctx context.Context, tx *sqlx.Tx) {
 				name = EXCLUDED.name, subtitle = EXCLUDED.subtitle, description = EXCLUDED.description,
 				device_type = EXCLUDED.device_type, subscription_days = EXCLUDED.subscription_days,
 				features = EXCLUDED.features, terms = EXCLUDED.terms, is_published = true,
-				purchase_count = EXCLUDED.purchase_count, rating_avg = EXCLUDED.rating_avg,
-				rating_count = EXCLUDED.rating_count, sort_order = EXCLUDED.sort_order, updated_at = NOW()
+				purchase_count = EXCLUDED.purchase_count, sort_order = EXCLUDED.sort_order, updated_at = NOW()
 			RETURNING id::text
 		`, p.Slug, p.Name, p.Subtitle, p.Description, p.DeviceType, p.SubscriptionDays,
 			p.Features, p.Terms, p.VideoURL, p.PurchaseCount, p.RatingAvg, p.RatingCount, p.SortOrder).Scan(&productID); err != nil {

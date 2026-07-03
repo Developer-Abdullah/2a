@@ -362,6 +362,92 @@ func (r *shopRepo) fulfill(ctx context.Context, tenantID uuid.UUID, lockSQL stri
 	return &order, true, nil
 }
 
+// SubmitProductRating records a 1-5 rating for a product (by slug). One rating per IP per product per
+// day; a repeat from the same IP that day updates it. The products.rating_avg/count are refreshed by
+// a DB trigger.
+func (r *shopRepo) SubmitProductRating(ctx context.Context, tenantID uuid.UUID, slug string, userID *string, rating int, comment *string, ipHash string) error {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	q := postgres.QuoteIdentifier(schema)
+
+	res, err := r.db.ExecContext(ctx, fmt.Sprintf(`
+		INSERT INTO %[1]s.product_ratings (product_id, user_id, rating, comment, ip_hash)
+		SELECT p.id, NULLIF($2,'')::uuid, $3, NULLIF($4,''), $5
+		FROM %[1]s.products p WHERE p.slug = $1 AND p.is_published = true
+		ON CONFLICT (product_id, ip_hash, rating_date)
+		DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, updated_at = NOW()
+	`, q), slug, derefOrEmpty(userID), rating, derefOrEmpty(comment), ipHash)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows // no such published product
+	}
+	return nil
+}
+
+// ListProductReviews returns recent non-empty reviews for a product (by slug).
+func (r *shopRepo) ListProductReviews(ctx context.Context, tenantID uuid.UUID, slug string, limit int) ([]domain.ProductReview, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 10
+	}
+	reviews := []domain.ProductReview{}
+	if err := r.db.SelectContext(ctx, &reviews, fmt.Sprintf(`
+		SELECT pr.rating, COALESCE(pr.comment,'') AS comment, pr.created_at::text AS created_at
+		FROM %[1]s.product_ratings pr
+		JOIN %[1]s.products p ON p.id = pr.product_id
+		WHERE p.slug = $1 AND pr.comment IS NOT NULL AND pr.comment <> ''
+		ORDER BY pr.created_at DESC
+		LIMIT $2
+	`, postgres.QuoteIdentifier(schema)), slug, limit); err != nil {
+		return nil, err
+	}
+	return reviews, nil
+}
+
+// ProductImageKey returns the S3 key of a published product's image, or "" if none.
+func (r *shopRepo) ProductImageKey(ctx context.Context, tenantID uuid.UUID, slug string) (string, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return "", err
+	}
+	var key string
+	err = r.db.GetContext(ctx, &key, fmt.Sprintf(`
+		SELECT COALESCE(image_s3_key,'') FROM %s.products WHERE slug = $1 AND is_published = true
+	`, postgres.QuoteIdentifier(schema)), slug)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return key, err
+}
+
+// ListOrdersByEmail returns the order history for a customer email (newest first), for order tracking.
+func (r *shopRepo) ListOrdersByEmail(ctx context.Context, tenantID uuid.UUID, email string) ([]domain.OrderSummary, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	items := []domain.OrderSummary{}
+	if err := r.db.SelectContext(ctx, &items, fmt.Sprintf(`
+		SELECT o.id::text AS id, o.email, COALESCE(o.phone,'') AS phone, o.currency, o.total,
+			o.status, COALESCE(o.provider,'') AS provider, o.created_at::text AS created_at,
+			(SELECT COUNT(*) FROM %[1]s.activation_codes ac WHERE ac.order_id = o.id) AS code_count
+		FROM %[1]s.orders o
+		WHERE lower(o.email) = lower($1)
+		ORDER BY o.created_at DESC
+		LIMIT 100
+	`, postgres.QuoteIdentifier(schema)), email); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *shopRepo) tenantSchema(ctx context.Context, tenantID uuid.UUID) (string, error) {
 	var schemaName string
 	if err := r.db.GetContext(ctx, &schemaName, `SELECT schema_name FROM public.tenants WHERE id = $1`, tenantID); err != nil {

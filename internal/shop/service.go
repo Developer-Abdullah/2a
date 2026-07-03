@@ -41,6 +41,12 @@ type Repository interface {
 	// FulfillByID idempotently fulfills a specific order by id — used for manual admin confirmation.
 	// applied=false means the order was already fulfilled.
 	FulfillByID(ctx context.Context, tenantID, orderID uuid.UUID) (order *domain.Order, applied bool, err error)
+	// SubmitProductRating records a 1-5 rating for a product (by slug); returns sql.ErrNoRows if the
+	// product does not exist / is unpublished.
+	SubmitProductRating(ctx context.Context, tenantID uuid.UUID, slug string, userID *string, rating int, comment *string, ipHash string) error
+	ListProductReviews(ctx context.Context, tenantID uuid.UUID, slug string, limit int) ([]domain.ProductReview, error)
+	ProductImageKey(ctx context.Context, tenantID uuid.UUID, slug string) (string, error)
+	ListOrdersByEmail(ctx context.Context, tenantID uuid.UUID, email string) ([]domain.OrderSummary, error)
 }
 
 // FulfillmentNotifier is notified after an order is fulfilled (e.g. to email the codes). It is
@@ -86,6 +92,22 @@ func (s *Service) GetProduct(ctx context.Context, tenantID uuid.UUID, slug, curr
 
 func (s *Service) GetOrder(ctx context.Context, tenantID, orderID uuid.UUID) (*domain.Order, error) {
 	return s.repo.GetOrder(ctx, tenantID, orderID)
+}
+
+func (s *Service) SubmitRating(ctx context.Context, tenantID uuid.UUID, slug string, userID *string, rating int, comment *string, ipHash string) error {
+	return s.repo.SubmitProductRating(ctx, tenantID, slug, userID, rating, comment, ipHash)
+}
+
+func (s *Service) ListReviews(ctx context.Context, tenantID uuid.UUID, slug string, limit int) ([]domain.ProductReview, error) {
+	return s.repo.ListProductReviews(ctx, tenantID, slug, limit)
+}
+
+func (s *Service) ProductImageKey(ctx context.Context, tenantID uuid.UUID, slug string) (string, error) {
+	return s.repo.ProductImageKey(ctx, tenantID, slug)
+}
+
+func (s *Service) OrdersByEmail(ctx context.Context, tenantID uuid.UUID, email string) ([]domain.OrderSummary, error) {
+	return s.repo.ListOrdersByEmail(ctx, tenantID, strings.TrimSpace(email))
 }
 
 // ConfirmOrder manually fulfills an order (admin-confirmed payment): it mints the codes and, on a

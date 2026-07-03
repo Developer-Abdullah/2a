@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -11,24 +13,27 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
+	"platform/internal/auth"
 	"platform/internal/billing"
 	"platform/internal/domain"
 	"platform/internal/shop"
 	"platform/internal/tenant"
 	"platform/pkg/response"
+	"platform/pkg/storage"
 )
 
 // ShopController serves the public storefront: catalog reads, order creation, checkout start, and
 // order status. All handlers resolve the current store from the tenant context.
 type ShopController struct {
 	svc *shop.Service
+	s3  *storage.S3Client
 	// publicBaseURL is where the payment provider returns the buyer after checkout; the order id is
 	// appended so the storefront can show the order status page.
 	publicBaseURL string
 }
 
-func NewShopController(svc *shop.Service, publicBaseURL string) *ShopController {
-	return &ShopController{svc: svc, publicBaseURL: strings.TrimRight(publicBaseURL, "/")}
+func NewShopController(svc *shop.Service, s3 *storage.S3Client, publicBaseURL string) *ShopController {
+	return &ShopController{svc: svc, s3: s3, publicBaseURL: strings.TrimRight(publicBaseURL, "/")}
 }
 
 func (ctrl *ShopController) currency(c *gin.Context) string {
@@ -66,6 +71,109 @@ func (ctrl *ShopController) GetProduct(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"product": product})
+}
+
+// ProductImage streams a product's image from object storage. Public and header-free so an <img> tag
+// (proxied by the storefront) can load it. Returns 404 when the product has no image.
+func (ctrl *ShopController) ProductImage(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	if ctrl.s3 == nil {
+		response.Fail(c, http.StatusServiceUnavailable, "storage_unavailable", "image storage not configured")
+		return
+	}
+	key, err := ctrl.svc.ProductImageKey(c.Request.Context(), t.ID, c.Param("slug"))
+	if err != nil || key == "" {
+		response.Fail(c, http.StatusNotFound, "no_image", "no image for this product")
+		return
+	}
+	body, contentType, err := ctrl.s3.GetObjectStream(c.Request.Context(), key)
+	if err != nil {
+		response.Fail(c, http.StatusNotFound, "no_image", "image not found")
+		return
+	}
+	defer body.Close()
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	c.Header("Cache-Control", "public, max-age=300")
+	c.DataFromReader(http.StatusOK, -1, contentType, body, nil)
+}
+
+// Reviews returns recent public reviews (comments) for a product.
+func (ctrl *ShopController) Reviews(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	reviews, err := ctrl.svc.ListReviews(c.Request.Context(), t.ID, c.Param("slug"), 10)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "reviews_failed", "could not load reviews")
+		return
+	}
+	response.Success(c, gin.H{"reviews": reviews})
+}
+
+type submitProductRatingRequest struct {
+	Rating  int     `json:"rating" binding:"required,min=1,max=5"`
+	Comment *string `json:"comment"`
+}
+
+// SubmitRating records a 1-5 rating for a product. Auth is optional (attributed to the user when a
+// token is present, else anonymous). Rate-limited at the route to blunt spam.
+func (ctrl *ShopController) SubmitRating(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	var req submitProductRatingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, http.StatusBadRequest, "invalid_request", "rating must be an integer between 1 and 5")
+		return
+	}
+	var userID *string
+	if claims := auth.GetClaims(c); claims != nil && claims.UserID != "" {
+		uid := claims.UserID
+		userID = &uid
+	}
+	ipHash := hashIP(c.ClientIP())
+	if err := ctrl.svc.SubmitRating(c.Request.Context(), t.ID, c.Param("slug"), userID, req.Rating, req.Comment, ipHash); err != nil {
+		response.Fail(c, http.StatusNotFound, "product_not_found", "product not found")
+		return
+	}
+	response.Success(c, gin.H{"submitted": true})
+}
+
+// MyOrders lists a customer's orders by email (order tracking). Returns summaries only; codes remain
+// on the per-order page.
+func (ctrl *ShopController) MyOrders(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	email := strings.TrimSpace(c.Query("email"))
+	if email == "" {
+		response.Fail(c, http.StatusBadRequest, "email_required", "email is required")
+		return
+	}
+	orders, err := ctrl.svc.OrdersByEmail(c.Request.Context(), t.ID, email)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "lookup_failed", "could not load orders")
+		return
+	}
+	response.Success(c, gin.H{"orders": orders})
+}
+
+// hashIP keeps raw IPs out of the ratings table while preserving the daily-uniqueness key.
+func hashIP(ip string) string {
+	sum := sha256.Sum256([]byte(ip))
+	return hex.EncodeToString(sum[:])
 }
 
 type createOrderRequest struct {

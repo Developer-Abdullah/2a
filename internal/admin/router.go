@@ -56,7 +56,7 @@ func SetupAdminRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client
 	// + queue the delivery email) when an admin verifies an offline payment.
 	shopSvc := shop.NewService(repository.NewShopRepository(db), billingRegistry)
 	shopSvc.SetNotifier(notify.NewOrderEmailer(queue))
-	shopController := controllers.NewAdminShopController(repository.NewAdminShopRepository(db), shopSvc)
+	shopController := controllers.NewAdminShopController(repository.NewAdminShopRepository(db), shopSvc, s3)
 
 	v1 := router.Group("/v1/admin")
 	// Tight brute-force cap on login, on top of the coarse per-IP limit in securityMiddleware.
@@ -88,6 +88,7 @@ func SetupAdminRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client
 	protected.GET("/products/:id", shopController.GetProduct)
 	protected.PUT("/products/:id", shopController.UpdateProduct)
 	protected.POST("/products/:id/publish", shopController.SetPublished)
+	protected.POST("/products/:id/image", shopController.UploadImage)
 	protected.GET("/orders", shopController.ListOrders)
 	protected.GET("/orders/:id", shopController.GetOrder)
 	protected.POST("/orders/:id/confirm", shopController.ConfirmOrder)

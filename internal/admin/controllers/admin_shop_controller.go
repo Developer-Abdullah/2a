@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 
 	"platform/internal/domain"
 	"platform/internal/tenant"
+	"platform/pkg/storage"
 )
 
 // AdminShopStore is the persistence surface for the store-admin catalog and orders views.
@@ -20,6 +22,7 @@ type AdminShopStore interface {
 	CreateProduct(ctx context.Context, tenantID uuid.UUID, in domain.ProductInput) (string, error)
 	UpdateProduct(ctx context.Context, tenantID uuid.UUID, id string, in domain.ProductInput) error
 	SetPublished(ctx context.Context, tenantID uuid.UUID, id string, published bool) error
+	SetProductImage(ctx context.Context, tenantID uuid.UUID, id, key string) error
 	ListOrders(ctx context.Context, tenantID uuid.UUID, status string, limit int) ([]domain.OrderSummary, error)
 	GetOrder(ctx context.Context, tenantID uuid.UUID, id string) (*domain.Order, error)
 }
@@ -32,10 +35,57 @@ type OrderConfirmer interface {
 type AdminShopController struct {
 	store     AdminShopStore
 	confirmer OrderConfirmer
+	s3        *storage.S3Client
 }
 
-func NewAdminShopController(store AdminShopStore, confirmer OrderConfirmer) *AdminShopController {
-	return &AdminShopController{store: store, confirmer: confirmer}
+func NewAdminShopController(store AdminShopStore, confirmer OrderConfirmer, s3 *storage.S3Client) *AdminShopController {
+	return &AdminShopController{store: store, confirmer: confirmer, s3: s3}
+}
+
+// UploadImage streams a product image (multipart "file") straight to object storage through the API
+// and persists its key on the product. Proxying the upload (rather than a browser presigned PUT)
+// keeps it working regardless of the storage endpoint's browser-reachability.
+func (ctrl *AdminShopController) UploadImage(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		adminFail(c, http.StatusBadRequest, "tenant context missing")
+		return
+	}
+	if ctrl.s3 == nil {
+		adminFail(c, http.StatusServiceUnavailable, "image storage not configured")
+		return
+	}
+	productID := c.Param("id")
+	header, err := c.FormFile("file")
+	if err != nil {
+		adminFail(c, http.StatusBadRequest, "no file uploaded")
+		return
+	}
+	if header.Size > 8<<20 { // 8 MiB cap
+		adminFail(c, http.StatusRequestEntityTooLarge, "image too large (max 8MB)")
+		return
+	}
+	file, err := header.Open()
+	if err != nil {
+		adminFail(c, http.StatusInternalServerError, "cannot read upload")
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	key := fmt.Sprintf("%s/product-images/%s/%s", t.ID.String(), productID, uuid.NewString())
+	if err := ctrl.s3.PutObjectStream(c.Request.Context(), key, file, contentType); err != nil {
+		adminFail(c, http.StatusInternalServerError, "failed to store image")
+		return
+	}
+	if err := ctrl.store.SetProductImage(c.Request.Context(), t.ID, productID, key); err != nil {
+		adminFail(c, http.StatusInternalServerError, "failed to save image on product")
+		return
+	}
+	adminOK(c, gin.H{"key": key})
 }
 
 // ListProducts returns every product (published or draft).
