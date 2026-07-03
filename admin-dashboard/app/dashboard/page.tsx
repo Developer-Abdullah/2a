@@ -2,14 +2,16 @@ import DashboardShell from "@/components/layout/DashboardShell";
 import { adminGet } from "@/lib/admin-api";
 import type { AdminStats, SalesStats } from "@/lib/types";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { getT } from "@/lib/locale-server";
 
 export const dynamic = "force-dynamic";
 
 function money(n: number, currency: string) {
-  return `${n.toLocaleString("ar-EG", { maximumFractionDigits: currency === "KWD" ? 3 : 2 })} ${currency}`;
+  return `${n.toLocaleString(undefined, { maximumFractionDigits: currency === "KWD" ? 3 : 2 })} ${currency}`;
 }
 
 export default async function DashboardPage() {
+  const t = await getT();
   let stats: AdminStats | null = null;
   let sales: SalesStats | null = null;
   let error = "";
@@ -19,20 +21,20 @@ export default async function DashboardPage() {
       adminGet<SalesStats>("/v1/admin/stats/sales"),
     ]);
   } catch (e) {
-    error = e instanceof Error ? e.message : "تعذّر تحميل الإحصائيات";
+    error = e instanceof Error ? e.message : t("dash.load_error");
   }
 
   const salesCards = sales
     ? [
-        { label: "إيرادات (جنيه)", value: money(sales.revenue_egp, "EGP"), accent: "text-emerald-600" },
-        { label: "إيرادات (دينار)", value: money(sales.revenue_kwd, "KWD"), accent: "text-emerald-600" },
-        { label: "طلبات اليوم", value: sales.orders_today.toLocaleString("ar-EG") },
-        { label: "طلبات هذا الشهر", value: sales.orders_month.toLocaleString("ar-EG") },
-        { label: "بانتظار المراجعة", value: sales.pending_orders.toLocaleString("ar-EG"), accent: "text-amber-600" },
-        { label: "طلبات مكتملة", value: sales.fulfilled_orders.toLocaleString("ar-EG") },
-        { label: "أكواد صادرة", value: sales.codes_issued.toLocaleString("ar-EG") },
+        { label: t("dash.revenue_egp"), value: money(sales.revenue_egp, "EGP"), accent: "text-emerald-600 dark:text-emerald-400" },
+        { label: t("dash.revenue_kwd"), value: money(sales.revenue_kwd, "KWD"), accent: "text-emerald-600 dark:text-emerald-400" },
+        { label: t("dash.orders_today"), value: sales.orders_today.toLocaleString() },
+        { label: t("dash.orders_month"), value: sales.orders_month.toLocaleString() },
+        { label: t("dash.pending"), value: sales.pending_orders.toLocaleString(), accent: "text-amber-600 dark:text-amber-400" },
+        { label: t("dash.fulfilled"), value: sales.fulfilled_orders.toLocaleString() },
+        { label: t("dash.codes_issued"), value: sales.codes_issued.toLocaleString() },
         {
-          label: "الأكثر مبيعًا",
+          label: t("dash.best_seller"),
           value: sales.top_product_name ? `${sales.top_product_name} (${sales.top_product_count})` : "—",
         },
       ]
@@ -40,29 +42,29 @@ export default async function DashboardPage() {
 
   const opsCards = stats
     ? [
-        { label: "المنتجات/التطبيقات", value: stats.apps },
-        { label: "المستخدمون", value: stats.users },
-        { label: "الأجهزة النشطة", value: stats.devices },
-        { label: "متوسط التقييم", value: stats.avg_rating.toFixed(2) },
+        { label: t("dash.products"), value: stats.apps },
+        { label: t("dash.customers"), value: stats.users },
+        { label: t("dash.devices"), value: stats.devices },
+        { label: t("dash.avg_rating"), value: stats.avg_rating.toFixed(2) },
       ]
     : [];
 
   return (
-    <DashboardShell title="لوحة التحكم">
+    <DashboardShell title="nav.dashboard">
       {error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : (
-        <div className="space-y-8" dir="rtl">
+        <div className="space-y-8">
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-500">المبيعات</h2>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("dash.sales")}</h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               {salesCards.map((c) => (
                 <Card key={c.label}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-500">{c.label}</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">{c.label}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className={`text-2xl font-bold ${("accent" in c && c.accent) || "text-slate-900"}`}>{c.value}</p>
+                    <p className={`text-2xl font-bold ${("accent" in c && c.accent) || "text-foreground"}`}>{c.value}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -70,15 +72,15 @@ export default async function DashboardPage() {
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-500">المتجر</h2>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">{t("dash.store")}</h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               {opsCards.map((c) => (
                 <Card key={c.label}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-500">{c.label}</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">{c.label}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-3xl font-bold text-slate-900">{c.value}</p>
+                    <p className="text-3xl font-bold text-foreground">{c.value}</p>
                   </CardContent>
                 </Card>
               ))}

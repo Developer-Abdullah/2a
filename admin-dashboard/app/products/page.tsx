@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getT } from "@/lib/locale-server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,55 +16,60 @@ function priceLabel(p: Product): string {
 }
 
 export default async function ProductsPage() {
+  const t = await getT();
   let products: Product[] = [];
   let error = "";
   try {
     const data = await adminGet<{ items: Product[] }>("/v1/admin/products");
     products = data.items ?? [];
   } catch (e) {
-    error = e instanceof Error ? e.message : "تعذّر تحميل المنتجات";
+    error = e instanceof Error ? e.message : t("dash.load_error");
   }
 
   return (
-    <DashboardShell title="المنتجات">
+    <DashboardShell title="products.title">
       <div className="mb-6 flex items-center justify-between">
-        <p className="text-sm text-slate-500">{products.length} منتج</p>
+        <p className="text-sm text-muted-foreground">{products.length} {t("products.count")}</p>
         <Link href="/products/new">
-          <Button>منتج جديد</Button>
+          <Button>{t("products.new")}</Button>
         </Link>
       </div>
 
       {error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : products.length === 0 ? (
-        <p className="text-sm text-slate-500">لا توجد منتجات بعد. أنشئ أول منتج.</p>
+        <p className="text-sm text-muted-foreground">{t("products.count")}: 0</p>
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>المُعرّف</TableHead>
-                  <TableHead>الأسعار</TableHead>
-                  <TableHead>المبيعات</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead className="text-right">إجراء</TableHead>
+                  <TableHead>{t("products.col.name")}</TableHead>
+                  <TableHead>{t("products.col.id")}</TableHead>
+                  <TableHead>{t("products.col.prices")}</TableHead>
+                  <TableHead>{t("products.col.sales")}</TableHead>
+                  <TableHead>{t("products.col.status")}</TableHead>
+                  <TableHead className="text-end"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {products.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium text-slate-900">{p.name}</TableCell>
-                    <TableCell className="text-slate-500">{p.slug}</TableCell>
-                    <TableCell className="text-slate-600">{priceLabel(p)}</TableCell>
-                    <TableCell className="text-slate-600">{p.purchase_count.toLocaleString("ar-EG")}</TableCell>
+                    <TableCell className="font-medium text-foreground">{p.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.slug}</TableCell>
+                    <TableCell className="text-foreground/80">{priceLabel(p)}</TableCell>
+                    <TableCell className="text-foreground/80">{p.purchase_count.toLocaleString()}</TableCell>
                     <TableCell>
-                      {p.is_published ? <Badge variant="success">منشور</Badge> : <Badge variant="muted">مسودة</Badge>}
+                      {p.is_published ? (
+                        <Badge variant="success">{t("products.published")}</Badge>
+                      ) : (
+                        <Badge variant="muted">{t("products.draft")}</Badge>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/products/${p.id}`} className="text-sm font-medium text-blue-600 hover:underline">
-                        تعديل
+                    <TableCell className="text-end">
+                      <Link href={`/products/${p.id}`} className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                        {t("common.edit")}
                       </Link>
                     </TableCell>
                   </TableRow>

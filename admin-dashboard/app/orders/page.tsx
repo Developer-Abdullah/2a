@@ -5,64 +5,63 @@ import type { OrderSummary } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { getT } from "@/lib/locale-server";
 
 export const dynamic = "force-dynamic";
 
-const STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
-  pending: { label: "بانتظار الدفع", variant: "warning" },
-  paid: { label: "مدفوع", variant: "default" },
-  failed: { label: "فشل", variant: "danger" },
-  fulfilled: { label: "مكتمل", variant: "success" },
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
+  pending: "warning",
+  paid: "default",
+  failed: "danger",
+  fulfilled: "success",
 };
 
-function statusBadge(status: string) {
-  const s = STATUS[status] ?? { label: status, variant: "muted" as BadgeVariant };
-  return <Badge variant={s.variant}>{s.label}</Badge>;
-}
-
 export default async function OrdersPage() {
+  const t = await getT();
   let orders: OrderSummary[] = [];
   let error = "";
   try {
     const data = await adminGet<{ items: OrderSummary[] }>("/v1/admin/orders");
     orders = data.items ?? [];
   } catch (e) {
-    error = e instanceof Error ? e.message : "تعذّر تحميل الطلبات";
+    error = e instanceof Error ? e.message : t("dash.load_error");
   }
 
+  const statusBadge = (status: string) => (
+    <Badge variant={STATUS_VARIANT[status] ?? "muted"}>{t(`orders.status.${status}`)}</Badge>
+  );
+
   return (
-    <DashboardShell title="الطلبات">
-      <p className="mb-6 text-sm text-slate-500">{orders.length} طلب</p>
+    <DashboardShell title="orders.title">
+      <p className="mb-6 text-sm text-muted-foreground">{orders.length} {t("orders.count")}</p>
 
       {error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : orders.length === 0 ? (
-        <p className="text-sm text-slate-500">لا توجد طلبات بعد.</p>
+        <p className="text-sm text-muted-foreground">{t("orders.count")}: 0</p>
       ) : (
         <Card>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>البريد</TableHead>
-                  <TableHead>الإجمالي</TableHead>
-                  <TableHead>الأكواد</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead>التاريخ</TableHead>
-                  <TableHead className="text-right">إجراء</TableHead>
+                  <TableHead>{t("orders.col.email")}</TableHead>
+                  <TableHead>{t("orders.col.total")}</TableHead>
+                  <TableHead>{t("orders.col.codes")}</TableHead>
+                  <TableHead>{t("orders.col.status")}</TableHead>
+                  <TableHead className="text-end"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {orders.map((o) => (
                   <TableRow key={o.id}>
-                    <TableCell className="font-medium text-slate-900">{o.email}</TableCell>
-                    <TableCell className="text-slate-600">{o.total} {o.currency}</TableCell>
-                    <TableCell className="text-slate-600">{o.code_count}</TableCell>
+                    <TableCell className="font-medium text-foreground">{o.email}</TableCell>
+                    <TableCell className="text-foreground/80">{o.total} {o.currency}</TableCell>
+                    <TableCell className="text-foreground/80">{o.code_count}</TableCell>
                     <TableCell>{statusBadge(o.status)}</TableCell>
-                    <TableCell className="text-slate-500">{new Date(o.created_at).toLocaleString("ar-EG")}</TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/orders/${o.id}`} className="text-sm font-medium text-blue-600 hover:underline">
-                        عرض
+                    <TableCell className="text-end">
+                      <Link href={`/orders/${o.id}`} className="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">
+                        {t("common.edit")}
                       </Link>
                     </TableCell>
                   </TableRow>

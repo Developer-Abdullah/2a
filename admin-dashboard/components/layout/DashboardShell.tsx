@@ -17,11 +17,11 @@ export default async function DashboardShell({
   if (!session) redirect("/login");
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-background text-foreground">
       <Sidebar isOwner={!!session.user?.isOwner} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header title={title} email={session.user?.email} />
-        <main className="flex-1 p-8">{children}</main>
+        <main className="flex-1 p-6 md:p-8">{children}</main>
       </div>
     </div>
   );

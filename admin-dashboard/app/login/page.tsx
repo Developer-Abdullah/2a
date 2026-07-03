@@ -30,26 +30,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-900 to-accent-800 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md bg-blue-600 text-lg font-bold text-white">
-            P
-          </div>
-          <CardTitle>Platform Admin</CardTitle>
-          <CardDescription>Sign in to manage your app store.</CardDescription>
+          <img src="/logo.jpg" alt="Double A" className="mb-2 h-11 w-11 rounded-lg" />
+          <CardTitle>Double A</CardTitle>
+          <CardDescription>سجّل الدخول لإدارة متجرك · Sign in to manage your store.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Email</label>
+              <label className="text-sm font-medium text-foreground/80">Email</label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Password</label>
+              <label className="text-sm font-medium text-foreground/80">Password</label>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
