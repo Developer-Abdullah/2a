@@ -1,9 +1,14 @@
-# Multi-Tenant IPA SaaS Platform
+# 2a
+
+Multi-Tenant IPA SaaS Platform
+
 Enterprise-grade iOS application distribution platform.
+
 ## Architecture
 - Backend: Go 1.22, Gin, PostgreSQL 16, Redis 7
 - Frontend: Next.js 14, Tailwind CSS, NextAuth
 - Mobile: iOS 16+, SwiftUI
+
 ## Local Development
 1. Copy `.env.example` to `.env`.
 2. Run `docker compose up --build -d` or `make dev`.
