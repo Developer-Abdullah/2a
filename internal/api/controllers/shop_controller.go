@@ -267,6 +267,31 @@ func (ctrl *ShopController) MyOrders(c *gin.Context) {
 	response.Success(c, gin.H{"orders": orders})
 }
 
+// ActivationStatus returns the read-only status of an activation code so a customer can check their
+// subscription on the storefront WITHOUT consuming a device slot.
+func (ctrl *ShopController) ActivationStatus(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		response.Fail(c, http.StatusBadRequest, "tenant_missing", "store context missing")
+		return
+	}
+	code := strings.TrimSpace(c.Query("code"))
+	if code == "" {
+		response.Fail(c, http.StatusBadRequest, "code_required", "code is required")
+		return
+	}
+	status, err := ctrl.svc.CodeStatus(c.Request.Context(), t.ID, code)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "lookup_failed", "could not check code")
+		return
+	}
+	if status == nil {
+		response.Fail(c, http.StatusNotFound, "code_not_found", "الكود غير موجود")
+		return
+	}
+	response.Success(c, gin.H{"status": status})
+}
+
 // hashIP keeps raw IPs out of the ratings table while preserving the daily-uniqueness key.
 func hashIP(ip string) string {
 	sum := sha256.Sum256([]byte(ip))

@@ -89,6 +89,18 @@ export interface AdminStats {
   rating_count: number;
 }
 
+export interface SalesStats {
+  revenue_egp: number;
+  revenue_kwd: number;
+  orders_today: number;
+  orders_month: number;
+  pending_orders: number;
+  fulfilled_orders: number;
+  codes_issued: number;
+  top_product_name: string;
+  top_product_count: number;
+}
+
 export interface SigningJob {
   id: string;
   app_name: string;

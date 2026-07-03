@@ -83,6 +83,9 @@ func (r *fakeRepo) SetOrderProof(context.Context, uuid.UUID, uuid.UUID, string) 
 func (r *fakeRepo) OrderProofKey(context.Context, uuid.UUID, uuid.UUID) (string, error) {
 	return "", nil
 }
+func (r *fakeRepo) CodeStatus(context.Context, uuid.UUID, string) (*domain.CodeStatus, error) {
+	return nil, nil
+}
 
 func TestProviderForCurrency(t *testing.T) {
 	cases := map[string]struct {

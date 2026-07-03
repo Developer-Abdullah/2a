@@ -113,6 +113,7 @@ func SetupAdminRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client
 
 	// Dashboard read-only views
 	protected.GET("/stats/overview", dashboardController.Stats)
+	protected.GET("/stats/sales", dashboardController.SalesStats)
 	protected.GET("/users", dashboardController.Users)
 	protected.GET("/users/:id", dashboardController.UserDetail)
 	protected.GET("/devices", dashboardController.Devices)

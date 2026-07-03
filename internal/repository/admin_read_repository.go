@@ -45,6 +45,49 @@ func (r *adminReadRepo) Stats(ctx context.Context, tenantID uuid.UUID) (*domain.
 	return &stats, nil
 }
 
+// SalesStats returns the storefront's commercial overview: revenue per currency (from fulfilled
+// orders), order counts by window/status, codes issued, and the best-selling product.
+func (r *adminReadRepo) SalesStats(ctx context.Context, tenantID uuid.UUID) (*domain.SalesStats, error) {
+	s, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	q := postgres.QuoteIdentifier(s)
+
+	var stats domain.SalesStats
+	if err := r.db.GetContext(ctx, &stats, fmt.Sprintf(`
+		SELECT
+			(SELECT COALESCE(SUM(total),0) FROM %[1]s.orders WHERE status='fulfilled' AND currency='EGP')::float8 AS revenue_egp,
+			(SELECT COALESCE(SUM(total),0) FROM %[1]s.orders WHERE status='fulfilled' AND currency='KWD')::float8 AS revenue_kwd,
+			(SELECT count(*) FROM %[1]s.orders WHERE created_at::date = CURRENT_DATE)::int AS orders_today,
+			(SELECT count(*) FROM %[1]s.orders WHERE date_trunc('month',created_at)=date_trunc('month',CURRENT_DATE))::int AS orders_month,
+			(SELECT count(*) FROM %[1]s.orders WHERE status IN ('pending','paid'))::int AS pending_orders,
+			(SELECT count(*) FROM %[1]s.orders WHERE status='fulfilled')::int AS fulfilled_orders,
+			(SELECT count(*) FROM %[1]s.activation_codes WHERE order_id IS NOT NULL)::int AS codes_issued
+	`, q)); err != nil {
+		return nil, err
+	}
+
+	// Best-selling product (by units in fulfilled orders). Left as zero-value when there are no sales.
+	var top struct {
+		Name  string `db:"name"`
+		Count int    `db:"cnt"`
+	}
+	err = r.db.GetContext(ctx, &top, fmt.Sprintf(`
+		SELECT p.name AS name, COALESCE(SUM(oi.qty),0)::int AS cnt
+		FROM %[1]s.order_items oi
+		JOIN %[1]s.products p ON p.id = oi.product_id
+		JOIN %[1]s.orders o ON o.id = oi.order_id AND o.status='fulfilled'
+		GROUP BY p.name ORDER BY cnt DESC LIMIT 1
+	`, q))
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	stats.TopProductName = top.Name
+	stats.TopProductCount = top.Count
+	return &stats, nil
+}
+
 func (r *adminReadRepo) ListNotifications(ctx context.Context, tenantID uuid.UUID) ([]domain.AdminNotificationDTO, error) {
 	s, err := r.tenantSchema(ctx, tenantID)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 // AdminReadStore is the read surface backing the dashboard list/stat pages.
 type AdminReadStore interface {
 	Stats(ctx context.Context, tenantID uuid.UUID) (*domain.AdminStatsDTO, error)
+	SalesStats(ctx context.Context, tenantID uuid.UUID) (*domain.SalesStats, error)
 	ListNotifications(ctx context.Context, tenantID uuid.UUID) ([]domain.AdminNotificationDTO, error)
 	ListCodes(ctx context.Context, tenantID uuid.UUID) ([]domain.AdminCodeDTO, error)
 	ListUsers(ctx context.Context, tenantID uuid.UUID) ([]domain.AdminUserDTO, error)
@@ -42,6 +43,20 @@ func (ctrl *AdminDashboardController) Stats(c *gin.Context) {
 	stats, err := ctrl.store.Stats(c.Request.Context(), t.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "failed to load stats"}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": stats})
+}
+
+func (ctrl *AdminDashboardController) SalesStats(c *gin.Context) {
+	t := tenant.GetFromContext(c)
+	if t == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": "tenant context missing"}})
+		return
+	}
+	stats, err := ctrl.store.SalesStats(c.Request.Context(), t.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "failed to load sales stats"}})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": stats})

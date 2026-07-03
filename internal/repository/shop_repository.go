@@ -487,6 +487,35 @@ func (r *shopRepo) ListOrdersByEmail(ctx context.Context, tenantID uuid.UUID, em
 	return items, nil
 }
 
+// CodeStatus returns the read-only status of an activation code WITHOUT consuming a device slot, for
+// the storefront activation page. Returns nil (not an error) when the code does not exist.
+func (r *shopRepo) CodeStatus(ctx context.Context, tenantID uuid.UUID, code string) (*domain.CodeStatus, error) {
+	schema, err := r.tenantSchema(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var row struct {
+		domain.CodeStatus
+		Expired bool `db:"expired"`
+	}
+	err = r.db.GetContext(ctx, &row, fmt.Sprintf(`
+		SELECT device_type::text AS device_type, max_devices, current_device_count, max_uses,
+			current_uses, is_revoked, expires_at::text AS expires_at, first_used_at::text AS first_used_at,
+			(expires_at IS NOT NULL AND expires_at <= NOW()) AS expired
+		FROM %s.activation_codes WHERE code = $1
+	`, postgres.QuoteIdentifier(schema)), strings.TrimSpace(code))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	st := row.CodeStatus
+	st.Expired = row.Expired
+	st.Valid = !st.IsRevoked && !st.Expired && st.CurrentUses < st.MaxUses
+	return &st, nil
+}
+
 func (r *shopRepo) tenantSchema(ctx context.Context, tenantID uuid.UUID) (string, error) {
 	var schemaName string
 	if err := r.db.GetContext(ctx, &schemaName, `SELECT schema_name FROM public.tenants WHERE id = $1`, tenantID); err != nil {

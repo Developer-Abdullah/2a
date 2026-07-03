@@ -66,7 +66,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
 
-          {fulfilled && <OrderCodes codes={order.codes} />}
+          {fulfilled && (
+            <>
+              <OrderCodes codes={order.codes} />
+              <Link href="/activate" className="btn-primary w-full">فعّل اشتراكك الآن</Link>
+            </>
+          )}
 
           {pending && (() => {
             const pay = paymentInfo(order.currency);

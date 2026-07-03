@@ -57,3 +57,16 @@ export interface Order {
   codes: string[];
   has_payment_proof: boolean;
 }
+
+export interface CodeStatus {
+  valid: boolean;
+  device_type: string;
+  max_devices: number;
+  current_device_count: number;
+  max_uses: number;
+  current_uses: number;
+  is_revoked: boolean;
+  expired: boolean;
+  expires_at?: string | null;
+  first_used_at?: string | null;
+}

@@ -80,6 +80,8 @@ func SetupRouter(db *postgres.DB, s3 *storage.S3Client, queue *asynq.Client, pri
 	// Manual-payment proof: customers attach a transfer screenshot; rate-limited to blunt abuse.
 	shopGroup.POST("/orders/:id/proof", ratelimit.Middleware(5, time.Minute), shopController.UploadOrderProof)
 	shopGroup.GET("/orders/:id/proof", shopController.OrderProof)
+	// Read-only activation-code status lookup (does not consume a device); rate-limited vs enumeration.
+	shopGroup.GET("/activation", ratelimit.Middleware(15, time.Minute), shopController.ActivationStatus)
 
 	v1 := router.Group("/v1")
 	v1.Use(tenant.ResolverMiddleware(tenantRepo))

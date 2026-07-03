@@ -107,6 +107,34 @@ type ProductReview struct {
 	CreatedAt string `db:"created_at" json:"created_at"`
 }
 
+// CodeStatus is the read-only status of an activation code, shown on the storefront activation page
+// WITHOUT consuming a device slot.
+type CodeStatus struct {
+	Valid              bool    `db:"-" json:"valid"`
+	DeviceType         string  `db:"device_type" json:"device_type"`
+	MaxDevices         int     `db:"max_devices" json:"max_devices"`
+	CurrentDeviceCount int     `db:"current_device_count" json:"current_device_count"`
+	MaxUses            int     `db:"max_uses" json:"max_uses"`
+	CurrentUses        int     `db:"current_uses" json:"current_uses"`
+	IsRevoked          bool    `db:"is_revoked" json:"is_revoked"`
+	Expired            bool    `db:"-" json:"expired"`
+	ExpiresAt          *string `db:"expires_at" json:"expires_at,omitempty"`
+	FirstUsedAt        *string `db:"first_used_at" json:"first_used_at,omitempty"`
+}
+
+// SalesStats is the storefront's commercial overview for the admin dashboard.
+type SalesStats struct {
+	RevenueEGP      float64 `db:"revenue_egp" json:"revenue_egp"`
+	RevenueKWD      float64 `db:"revenue_kwd" json:"revenue_kwd"`
+	OrdersToday     int     `db:"orders_today" json:"orders_today"`
+	OrdersMonth     int     `db:"orders_month" json:"orders_month"`
+	PendingOrders   int     `db:"pending_orders" json:"pending_orders"`
+	FulfilledOrders int     `db:"fulfilled_orders" json:"fulfilled_orders"`
+	CodesIssued     int     `db:"codes_issued" json:"codes_issued"`
+	TopProductName  string  `db:"top_product_name" json:"top_product_name"`
+	TopProductCount int     `db:"top_product_count" json:"top_product_count"`
+}
+
 // OrderSummary is the admin list row for an order.
 type OrderSummary struct {
 	ID        string  `db:"id" json:"id"`

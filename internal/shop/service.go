@@ -50,6 +50,8 @@ type Repository interface {
 	// SetOrderProof / OrderProofKey manage the customer's uploaded transfer-screenshot key.
 	SetOrderProof(ctx context.Context, tenantID, orderID uuid.UUID, key string) error
 	OrderProofKey(ctx context.Context, tenantID, orderID uuid.UUID) (string, error)
+	// CodeStatus returns the read-only status of an activation code (nil when it doesn't exist).
+	CodeStatus(ctx context.Context, tenantID uuid.UUID, code string) (*domain.CodeStatus, error)
 }
 
 // FulfillmentNotifier is notified after an order is fulfilled (e.g. to email the codes). It is
@@ -119,6 +121,10 @@ func (s *Service) SetOrderProof(ctx context.Context, tenantID, orderID uuid.UUID
 
 func (s *Service) OrderProofKey(ctx context.Context, tenantID, orderID uuid.UUID) (string, error) {
 	return s.repo.OrderProofKey(ctx, tenantID, orderID)
+}
+
+func (s *Service) CodeStatus(ctx context.Context, tenantID uuid.UUID, code string) (*domain.CodeStatus, error) {
+	return s.repo.CodeStatus(ctx, tenantID, strings.TrimSpace(code))
 }
 
 // ConfirmOrder manually fulfills an order (admin-confirmed payment): it mints the codes and, on a
