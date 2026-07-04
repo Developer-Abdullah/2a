@@ -3,12 +3,9 @@
 import { useState } from "react";
 import { KeyRound, Loader2, CheckCircle2, XCircle, Smartphone, Download, MessageCircle, ShieldCheck } from "lucide-react";
 import type { CodeStatus } from "@/lib/types";
+import { useStore } from "@/components/store-provider";
 
 const WHATSAPP = (process.env.NEXT_PUBLIC_WHATSAPP || "").replace(/[^0-9]/g, "");
-
-function deviceLabel(t: string) {
-  return t === "ipad" ? "آيباد" : t === "iphone" ? "آيفون" : "آيفون / آيباد";
-}
 
 // A stable per-browser device id so re-activations from the same device don't consume extra slots.
 function getDeviceId(): string {
@@ -36,6 +33,7 @@ interface AppInfo {
 type Step = "code" | "activate" | "done";
 
 export default function ActivatePage() {
+  const { t } = useStore();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<CodeStatus | null>(null);
@@ -46,6 +44,8 @@ export default function ActivatePage() {
   const [app, setApp] = useState<AppInfo | null>(null);
   const [loadingApp, setLoadingApp] = useState(false);
 
+  const deviceLabel = (d: string) => (d === "ipad" ? t("device.ipad") : d === "iphone" ? t("device.iphone") : t("device.both"));
+
   async function check(e: React.FormEvent) {
     e.preventDefault();
     if (!code.trim()) return;
@@ -55,15 +55,12 @@ export default function ActivatePage() {
     setStep("code");
     try {
       const res = await fetch(`/api/activation?code=${encodeURIComponent(code.trim())}`);
-      if (res.status === 404) {
-        setNotFound(true);
-      } else if (res.ok) {
+      if (res.status === 404) setNotFound(true);
+      else if (res.ok) {
         const data = await res.json();
         setStatus(data.status);
         if (data.status?.valid) setStep("activate");
-      } else {
-        setNotFound(true);
-      }
+      } else setNotFound(true);
     } catch {
       setNotFound(true);
     } finally {
@@ -83,13 +80,10 @@ export default function ActivatePage() {
       if (res.ok) {
         setStep("done");
         loadApp();
-      } else if (res.status === 429) {
-        setActivateErr("محاولات كثيرة. انتظر دقيقة وحاول مجددًا.");
-      } else {
-        setActivateErr("تعذّر تفعيل الكود على هذا الجهاز. تأكد أنه صالح ولم تُستهلك حصته.");
-      }
+      } else if (res.status === 429) setActivateErr(t("activate.err_many"));
+      else setActivateErr(t("activate.err_generic"));
     } catch {
-      setActivateErr("تعذّر الاتصال. حاول مرة أخرى.");
+      setActivateErr(t("activate.err_conn"));
     } finally {
       setActivating(false);
     }
@@ -99,8 +93,7 @@ export default function ActivatePage() {
     setLoadingApp(true);
     try {
       const res = await fetch("/api/app");
-      const data = await res.json();
-      setApp(data);
+      setApp(await res.json());
     } catch {
       setApp({ ready: false });
     } finally {
@@ -118,17 +111,17 @@ export default function ActivatePage() {
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl brand-gradient text-white">
           <KeyRound className="h-7 w-7" />
         </div>
-        <h1 className="mt-4 text-2xl font-extrabold text-ink">تفعيل الاشتراك</h1>
-        <p className="mt-2 text-slate-500">أدخل كود التفعيل، فعّله على جهازك، ثم ثبّت التطبيق.</p>
+        <h1 className="mt-4 text-2xl font-extrabold text-foreground">{t("activate.title")}</h1>
+        <p className="mt-2 text-muted-foreground">{t("activate.sub")}</p>
       </div>
 
       {/* Steps indicator */}
       <div className="mt-8 flex items-center justify-center gap-2 text-xs font-bold">
-        <StepDot n={1} label="الكود" active={step === "code"} done={step !== "code"} />
-        <div className="h-px w-8 bg-slate-200" />
-        <StepDot n={2} label="التفعيل" active={step === "activate"} done={step === "done"} />
-        <div className="h-px w-8 bg-slate-200" />
-        <StepDot n={3} label="التثبيت" active={step === "done"} done={false} />
+        <StepDot n={1} label={t("activate.step1")} active={step === "code"} done={step !== "code"} />
+        <div className="h-px w-6 bg-border sm:w-8" />
+        <StepDot n={2} label={t("activate.step2")} active={step === "activate"} done={step === "done"} />
+        <div className="h-px w-6 bg-border sm:w-8" />
+        <StepDot n={3} label={t("activate.step3")} active={step === "done"} done={false} />
       </div>
 
       {/* Step 1: enter code */}
@@ -137,29 +130,29 @@ export default function ActivatePage() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="XXXX-XXXX-XXXX"
-          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-center font-mono text-lg tracking-widest outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+          className="field flex-1 text-center font-mono text-lg tracking-widest"
         />
         <button type="submit" disabled={loading} className="btn-primary">
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <KeyRound className="h-5 w-5" />}
-          تحقّق
+          {t("activate.check")}
         </button>
       </form>
 
       {notFound && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-rose-50 p-4 text-rose-700">
+        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-rose-50 p-4 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
           <XCircle className="h-6 w-6 flex-none" />
           <div>
-            <p className="font-bold">الكود غير موجود</p>
-            <p className="text-sm">تأكد من كتابة الكود كما وصلك تمامًا.</p>
+            <p className="font-bold">{t("activate.notfound_t")}</p>
+            <p className="text-sm">{t("activate.notfound_b")}</p>
           </div>
         </div>
       )}
 
       {status && !status.valid && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-amber-800">
+        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
           <XCircle className="h-6 w-6 flex-none" />
           <p className="font-bold">
-            {status.is_revoked ? "هذا الكود موقوف" : status.expired ? "انتهت صلاحية هذا الكود" : "تم استخدام هذا الكود بالكامل"}
+            {status.is_revoked ? t("activate.revoked") : status.expired ? t("activate.expired") : t("activate.used")}
           </p>
         </div>
       )}
@@ -167,60 +160,50 @@ export default function ActivatePage() {
       {/* Step 2: activate on this device */}
       {step === "activate" && status?.valid && (
         <div className="mt-6 card p-6">
-          <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-emerald-700">
+          <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
             <CheckCircle2 className="h-6 w-6 flex-none" />
             <div>
-              <p className="font-bold">الكود صالح ✅</p>
-              <p className="text-sm">الأجهزة: {status.current_device_count} / {status.max_devices} · النوع: {deviceLabel(status.device_type)}</p>
+              <p className="font-bold">{t("activate.valid")}</p>
+              <p className="text-sm">{t("activate.devices")}: {status.current_device_count} / {status.max_devices} · {t("activate.type")}: {deviceLabel(status.device_type)}</p>
             </div>
           </div>
           <button onClick={activate} disabled={activating} className="btn-primary mt-5 w-full">
             {activating ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-            فعّل على هذا الجهاز
+            {t("activate.activate_btn")}
           </button>
-          {activateErr ? <p className="mt-2 text-center text-sm text-rose-600">{activateErr}</p> : null}
+          {activateErr ? <p className="mt-2 text-center text-sm text-rose-600 dark:text-rose-400">{activateErr}</p> : null}
         </div>
       )}
 
       {/* Step 3: install */}
       {step === "done" && (
         <div className="mt-6 space-y-5">
-          <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+          <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
             <CheckCircle2 className="h-6 w-6 flex-none" />
-            <p className="font-bold">تم تفعيل الاشتراك على جهازك 🎉</p>
+            <p className="font-bold">{t("activate.done")}</p>
           </div>
 
           <div className="card p-6">
-            <h2 className="flex items-center gap-2 text-lg font-extrabold text-ink">
-              <Smartphone className="h-5 w-5 text-brand-600" /> ثبّت التطبيق
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-foreground">
+              <Smartphone className="h-5 w-5 text-brand-600 dark:text-brand-300" /> {t("activate.install_t")}
             </h2>
 
             {loadingApp ? (
-              <div className="mt-4 flex items-center gap-2 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> جارٍ التحضير…</div>
+              <div className="mt-4 flex items-center gap-2 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> {t("activate.preparing")}</div>
             ) : app?.ready ? (
               <>
-                <p className="mt-3 text-sm leading-7 text-slate-600">
-                  اضغط زر التثبيت من جهاز {deviceLabel(status?.device_type || "iphone")}، ووافق على تثبيت التطبيق. بعد التثبيت
-                  ستجد بداخله مكتبة التطبيقات جاهزة للاستخدام طوال مدة اشتراكك.
-                </p>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">{t("activate.install_body")}</p>
                 <a href={installHref} className="btn-primary mt-5 w-full">
-                  <Download className="h-5 w-5" /> تثبيت {app.name}{app.version ? ` (${app.version})` : ""}
+                  <Download className="h-5 w-5" /> {t("activate.install_btn")} {app.name}{app.version ? ` (${app.version})` : ""}
                 </a>
-                <p className="mt-3 text-center text-xs text-slate-400">
-                  افتح هذه الصفحة من جهاز الآيفون/الآيباد نفسه ليعمل زر التثبيت.
-                </p>
+                <p className="mt-3 text-center text-xs text-muted-foreground">{t("activate.open_on_device")}</p>
               </>
             ) : (
-              <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
-                التطبيق قيد التجهيز حاليًا. تواصل معنا وسنرسل لك رابط التثبيت مباشرة.
+              <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                {t("activate.not_ready")}
                 {WHATSAPP && (
-                  <a
-                    href={`https://wa.me/${WHATSAPP}?text=${encodeURIComponent("مرحبًا، فعّلت اشتراكي وأحتاج رابط التثبيت.")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary mt-3 w-full"
-                  >
-                    <MessageCircle className="h-5 w-5" /> تواصل عبر واتساب
+                  <a href={`https://wa.me/${WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="btn-primary mt-3 w-full">
+                    <MessageCircle className="h-5 w-5" /> {t("activate.whatsapp_help")}
                   </a>
                 )}
               </div>
@@ -238,12 +221,12 @@ function StepDot({ n, label, active, done }: { n: number; label: string; active:
       <span
         className={
           "flex h-6 w-6 items-center justify-center rounded-full text-white " +
-          (done ? "bg-emerald-500" : active ? "bg-brand-600" : "bg-slate-300")
+          (done ? "bg-emerald-500" : active ? "bg-brand-600" : "bg-muted-foreground/50")
         }
       >
         {done ? <CheckCircle2 className="h-4 w-4" /> : n}
       </span>
-      <span className={active ? "text-ink" : "text-slate-400"}>{label}</span>
+      <span className={active ? "text-foreground" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }

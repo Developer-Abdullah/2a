@@ -13,7 +13,7 @@ export function Stars({ value, size = 16 }: { value: number; size?: number }) {
           <Star
             key={i}
             size={size}
-            className={filled || isHalf ? "fill-amber-400 text-amber-400" : "text-slate-300"}
+            className={filled || isHalf ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}
             style={isHalf ? { clipPath: "inset(0 0 0 50%)" } : undefined}
           />
         );

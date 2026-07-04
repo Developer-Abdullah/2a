@@ -2,43 +2,42 @@
 
 import { useState } from "react";
 import { Check, Copy, KeyRound } from "lucide-react";
+import { useStore } from "./store-provider";
 
 export function OrderCodes({ codes }: { codes: string[] }) {
+  const { t } = useStore();
   if (!codes || codes.length === 0) return null;
   return (
-    <div className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 p-5">
-      <h2 className="flex items-center gap-2 font-extrabold text-brand-800">
-        <KeyRound className="h-5 w-5" /> {codes.length > 1 ? "أكواد التفعيل" : "كود التفعيل"}
+    <div className="rounded-2xl border-2 border-dashed border-brand-300 bg-brand-50 p-5 dark:border-brand-700 dark:bg-brand-900/40">
+      <h2 className="flex items-center gap-2 font-extrabold text-brand-800 dark:text-brand-100">
+        <KeyRound className="h-5 w-5" /> {t("order.your_codes")}
       </h2>
       <div className="mt-4 space-y-3">
         {codes.map((code) => (
-          <CodeRow key={code} code={code} />
+          <CodeRow key={code} code={code} copy={t("order.copy")} copied={t("order.copied")} />
         ))}
       </div>
-      <p className="mt-4 text-xs text-brand-700/80">
-        احتفظ بالكود في مكان آمن. صالح لعملية تفعيل واحدة.
-      </p>
     </div>
   );
 }
 
-function CodeRow({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
+function CodeRow({ code, copy, copied }: { code: string; copy: string; copied: string }) {
+  const [done, setDone] = useState(false);
+  const onCopy = async () => {
     try {
       await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      setDone(true);
+      setTimeout(() => setDone(false), 1600);
     } catch {
       /* clipboard unavailable */
     }
   };
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-brand-100">
-      <code className="select-all font-mono text-lg font-bold tracking-wider text-ink">{code}</code>
-      <button onClick={copy} className="btn-ghost px-3 py-2 text-sm">
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-        {copied ? "تم النسخ" : "نسخ"}
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-card p-3 ring-1 ring-border">
+      <code className="select-all font-mono text-lg font-bold tracking-wider text-foreground">{code}</code>
+      <button onClick={onCopy} className="btn-ghost px-3 py-2 text-sm">
+        {done ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {done ? copied : copy}
       </button>
     </div>
   );

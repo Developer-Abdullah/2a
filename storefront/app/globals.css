@@ -4,6 +4,26 @@
 
 :root {
   --font-cairo: "Cairo", "Tajawal", system-ui, sans-serif;
+
+  /* Light theme tokens */
+  --bg: #f8fafc;      /* slate-50 */
+  --fg: #101827;      /* ink */
+  --card: #ffffff;
+  --muted: #f1f5f9;   /* slate-100 (hover surfaces) */
+  --muted-fg: #64748b;/* slate-500 (secondary text) */
+  --border: #e2e8f0;  /* slate-200 */
+  --input: #e2e8f0;
+}
+
+.dark {
+  /* Dark theme tokens (Double A navy) */
+  --bg: #0b1220;
+  --fg: #e8edf6;
+  --card: #131c33;    /* brand-950 */
+  --muted: #1e2a4a;   /* brand-900 */
+  --muted-fg: #93a4c3;
+  --border: #2b3b64;  /* brand-800 */
+  --input: #2b3b64;
 }
 
 html {
@@ -11,7 +31,7 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-ink antialiased;
+  @apply bg-background text-foreground antialiased;
 }
 
 .container-page {
@@ -24,7 +44,13 @@ body {
 }
 
 .card {
-  @apply rounded-2xl bg-white shadow-card ring-1 ring-slate-100;
+  @apply rounded-2xl bg-card text-foreground shadow-card ring-1 ring-border;
+}
+
+/* Theme-aware form controls (prevents white boxes in dark mode). */
+.field {
+  @apply w-full rounded-xl border border-input bg-card px-4 py-3 text-foreground outline-none
+    placeholder:text-muted-foreground focus:border-brand-400 focus:ring-2 focus:ring-brand-400/30;
 }
 
 .btn {
@@ -37,7 +63,7 @@ body {
 }
 
 .btn-ghost {
-  @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
+  @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-800/40 dark:text-brand-100 dark:hover:bg-brand-800/60;
 }
 
 .btn-white {

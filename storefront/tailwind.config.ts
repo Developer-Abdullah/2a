@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,6 +9,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Theme-aware tokens (light/dark) driven by CSS variables in globals.css.
+        background: "var(--bg)",
+        foreground: "var(--fg)",
+        card: "var(--card)",
+        muted: "var(--muted)",
+        "muted-foreground": "var(--muted-fg)",
+        border: "var(--border)",
+        input: "var(--input)",
         // Double A brand: deep navy primary (logo background top).
         brand: {
           50: "#f1f4fa",

@@ -15,7 +15,7 @@ export function Price({
   staticCurrency?: string;
   size?: "md" | "lg";
 }) {
-  const { currency } = useStore();
+  const { currency, locale } = useStore();
   const cur = staticCurrency ?? currency;
   const price = priceFor(product.prices, cur);
   if (!price) return null;
@@ -23,16 +23,16 @@ export function Price({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className={size === "lg" ? "text-3xl font-extrabold text-brand-700" : "text-xl font-extrabold text-brand-700"}>
+      <span className={(size === "lg" ? "text-3xl" : "text-xl") + " font-extrabold text-brand-600 dark:text-brand-300"}>
         {formatMoney(price.amount, price.currency)}
       </span>
       {price.compare_at && off ? (
         <>
-          <span className="text-sm text-slate-400 line-through">
+          <span className="text-sm text-muted-foreground line-through">
             {formatMoney(price.compare_at, price.currency)}
           </span>
-          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-600">
-            خصم {off}%
+          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+            {locale === "ar" ? `خصم ${off}%` : `${off}% off`}
           </span>
         </>
       ) : null}

@@ -4,6 +4,8 @@ import { StoreProvider } from "@/components/store-provider";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { getCurrency } from "@/lib/api";
+import { getLocale } from "@/lib/locale-server";
+import { dir } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Double A — أكواد اشتراك تطبيقات بلس",
@@ -11,11 +13,15 @@ export const metadata: Metadata = {
   icons: { icon: "/logo.jpg" },
 };
 
+// Applies the stored theme before paint to avoid a flash of the wrong theme.
+const noFlashTheme = `(function(){try{var t=localStorage.getItem('store_theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const currency = await getCurrency();
+  const [currency, locale] = await Promise.all([getCurrency(), getLocale()]);
   return (
-    <html lang="ar" dir="rtl">
+    <html lang={locale} dir={dir(locale)} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: noFlashTheme }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -24,7 +30,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="min-h-screen font-sans">
-        <StoreProvider initialCurrency={currency}>
+        <StoreProvider initialCurrency={currency} initialLocale={locale}>
           <Header />
           <main>{children}</main>
           <Footer />

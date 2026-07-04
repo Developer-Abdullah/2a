@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, XCircle } from "lucide-react";
 import { fetchOrder } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { paymentInfo } from "@/lib/payment";
+import { getLocale, getT } from "@/lib/locale-server";
 import { OrderCodes } from "@/components/order-codes";
 import { OrderPoller } from "@/components/order-poller";
 import { PaymentPanel } from "@/components/payment-panel";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
   const order = await fetchOrder(id);
   if (!order) notFound();
 
@@ -21,7 +23,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="container-page max-w-3xl py-12">
-      {/* While pending, poll the server so the page flips to "fulfilled" once the webhook lands. */}
+      {/* While pending, poll the server so the page flips to "fulfilled" once the payment is confirmed. */}
       {pending && <OrderPoller id={order.id} />}
 
       <div className="card overflow-hidden">
@@ -33,54 +35,49 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
         >
           {fulfilled ? <CheckCircle2 className="h-14 w-14" /> : failed ? <XCircle className="h-14 w-14" /> : <Clock className="h-14 w-14" />}
           <h1 className="text-2xl font-extrabold">
-            {fulfilled ? "تم استلام الطلب 🎉" : failed ? "الطلب ملغى" : "طلبك قيد المراجعة"}
+            {fulfilled ? t("order.fulfilled_title") : failed ? t("order.failed_title") : t("order.pending_title")}
           </h1>
           <p className="text-white/90">
-            {fulfilled
-              ? "شكرًا لك! كود التفعيل جاهز بالأسفل."
-              : failed
-              ? "تم إلغاء هذا الطلب. يمكنك إنشاء طلب جديد."
-              : "أكمل الدفع بالتعليمات بالأسفل، وسيصلك الكود فور تأكيد الدفع."}
+            {fulfilled ? t("order.fulfilled_sub") : failed ? t("order.failed_sub") : t("order.pending_sub")}
           </p>
         </div>
 
         <div className="space-y-6 p-6">
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>رقم الطلب</span>
-            <span className="font-mono text-slate-700">{order.id}</span>
+          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>{t("order.number")}</span>
+            <span className="break-all font-mono text-foreground/80">{order.id}</span>
           </div>
 
-          <div className="rounded-2xl bg-slate-50 p-4">
-            <h2 className="font-extrabold text-ink">تفاصيل الطلب</h2>
+          <div className="rounded-2xl bg-muted p-4">
+            <h2 className="font-extrabold text-foreground">{t("order.details")}</h2>
             <ul className="mt-3 space-y-2 text-sm">
               {order.items.map((it) => (
-                <li key={it.id} className="flex items-center justify-between text-slate-600">
+                <li key={it.id} className="flex items-center justify-between gap-2 text-muted-foreground">
                   <span>{it.product_name} × {it.qty}</span>
-                  <span className="font-bold text-ink">{formatMoney(it.unit_amount * it.qty, it.currency)}</span>
+                  <span className="font-bold text-foreground">{formatMoney(it.unit_amount * it.qty, it.currency)}</span>
                 </li>
               ))}
             </ul>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
-              <span className="font-bold text-slate-700">الإجمالي</span>
-              <span className="text-lg font-extrabold text-brand-700">{formatMoney(order.total, order.currency)}</span>
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <span className="font-bold text-foreground/80">{t("order.total")}</span>
+              <span className="text-lg font-extrabold text-brand-600 dark:text-brand-300">{formatMoney(order.total, order.currency)}</span>
             </div>
           </div>
 
           {fulfilled && (
             <>
               <OrderCodes codes={order.codes} />
-              <Link href="/activate" className="btn-primary w-full">فعّل اشتراكك الآن</Link>
+              <Link href="/activate" className="btn-primary w-full">{t("order.activate_now")}</Link>
             </>
           )}
 
           {pending && (() => {
-            const pay = paymentInfo(order.currency);
+            const pay = paymentInfo(order.currency, locale);
             return (
               <PaymentPanel
                 orderId={order.id}
                 total={formatMoney(order.total, order.currency)}
                 methods={pay.methods}
-                note={pay.note}
                 whatsapp={pay.whatsapp}
                 hasProof={order.has_payment_proof}
               />
@@ -88,11 +85,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           })()}
 
           <div className="flex justify-center">
-            <Link href="/" className="btn-ghost">العودة للرئيسية</Link>
+            <Link href="/" className="btn-ghost">{t("order.back_home")}</Link>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
