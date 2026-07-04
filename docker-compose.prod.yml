@@ -1,38 +1,58 @@
-version: '3.8'
+# Production overlay for a single-box "Double A" launch. Layer it on the base compose:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Adds Caddy (HTTPS), production restart/logging, and the public admin origin. Horizontal scaling
+# (deploy.replicas) belongs in a swarm/k8s setup — a single named container can't be replicated.
 services:
   core-api:
-    deploy:
-      replicas: 3
-      update_config:
-        parallelism: 1
-        delay: 10s
-        order: start-first
     restart: always
     logging:
       driver: "json-file"
       options:
         max-size: "50m"
         max-file: "3"
+
+  admin-api:
+    restart: always
+
   signing-worker:
-    deploy:
-      replicas: 3
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
     restart: always
+
   notifier-worker:
-    deploy:
-      replicas: 2
     restart: always
-  analytics-worker:
-    deploy:
-      replicas: 1
+
+  storefront:
     restart: always
+
   admin-dashboard:
-    deploy:
-      replicas: 2
     restart: always
+    # In production NextAuth must know its own public origin (the admin domain behind Caddy).
+    environment:
+      BACKEND_API_URL: http://admin-api:8081
+      NEXTAUTH_URL: https://${ADMIN_DOMAIN}
+
+  # Reverse proxy + automatic HTTPS. The only service that binds to the host's 80/443; everything
+  # else is reached over the internal Docker network. Domains + ACME email come from the prod .env.
+  caddy:
+    image: caddy:2-alpine
+    container_name: platform-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+    depends_on:
+      - storefront
+      - admin-dashboard
+      - core-api
+      - admin-api
+
+volumes:
+  caddy_data:
+  caddy_config:

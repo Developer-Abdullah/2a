@@ -1,5 +1,41 @@
 # Deployment, Hosting & Operations
 
+## Quick launch (single "Double A" store)
+
+The store runs as one tenant. Everything sits behind **Caddy**, which gets HTTPS certificates
+automatically. On a fresh VPS (4 vCPU / 8 GB, Ubuntu, Docker installed):
+
+1. **DNS.** Point four `A`/`AAAA` records at the server: `doublea.store`, `api.`, `admin.`,
+   `admin-api.` (any domain — set them in `.env`).
+2. **Clone + configure.**
+   ```bash
+   git clone <repo> /opt/doublea && cd /opt/doublea
+   cp .env.prod.example .env
+   bash scripts/gen-secrets.sh >> secrets.txt   # paste the lines into .env, then rm secrets.txt
+   # edit .env: set the *_DOMAIN vars, ACME_EMAIL, STOREFRONT_URL, payment + SMTP keys
+   ```
+3. **Launch.**
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+   ```
+   Caddy issues certs on first request. Storefront → `https://doublea.store`, admin →
+   `https://admin.doublea.store`.
+4. **Firewall (ufw).** Allow `22, 80, 443`; block `5432, 6379, 8080, 8081, 3000, 3001` from the
+   public internet — they only talk over the Docker network; Caddy is the sole public entry.
+5. **Payment webhooks.** In the Paymob / MyFatoorah dashboards set the webhook URL to
+   `https://api.doublea.store/billing/webhook/paymob` (and `/myfatoorah`). HTTPS is required.
+6. **Backups.** `crontab -e` → `30 3 * * * cd /opt/doublea && bash scripts/backup-db.sh`.
+
+Key files: [`deploy/Caddyfile`](../deploy/Caddyfile), `docker-compose.prod.yml`,
+[`.env.prod.example`](../.env.prod.example), `scripts/gen-secrets.sh`, `scripts/backup-db.sh`.
+
+**Single-store resolution:** `STORE_TENANT_SLUG=store` forces every request (including header-less
+payment webhooks and the device's `itms-services` OTA fetch) to resolve to the one store — set it or
+those callers 400.
+
+---
+
+
 ## Services
 
 | Service | Port | Notes |

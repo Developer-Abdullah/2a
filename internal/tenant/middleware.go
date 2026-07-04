@@ -2,6 +2,9 @@ package tenant
 
 import (
 	"context"
+	"os"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -15,8 +18,16 @@ type TenantRepository interface {
 }
 
 func ResolverMiddleware(repo TenantRepository) gin.HandlerFunc {
+	// Single-store mode: when STORE_TENANT_SLUG is set, every request resolves to that one store,
+	// regardless of Host/subdomain or headers. This is required so header-less callers — payment
+	// webhooks and the device's itms-services OTA fetch — and subdomain APIs (api.example.com) all
+	// map to the store instead of being misread as an "api" tenant.
+	forced := strings.TrimSpace(os.Getenv("STORE_TENANT_SLUG"))
 	return func(c *gin.Context) {
-		identifier := ResolveSlug(c.Request)
+		identifier := forced
+		if identifier == "" {
+			identifier = ResolveSlug(c.Request)
+		}
 		if identifier == "" {
 			c.AbortWithStatusJSON(400, gin.H{"error": "Tenant identifier missing"})
 			return

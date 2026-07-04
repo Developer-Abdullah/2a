@@ -211,6 +211,9 @@ services:
     build:
       context: .
       dockerfile: docker/storefront.Dockerfile
+      args:
+        NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-}
+        NEXT_PUBLIC_TELEGRAM: ${NEXT_PUBLIC_TELEGRAM:-}
     container_name: platform-storefront
     restart: unless-stopped
     ports:

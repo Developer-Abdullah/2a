@@ -1,0 +1,43 @@
+# Double A — reverse proxy with automatic HTTPS (Let's Encrypt).
+# Domains come from the environment (set in the production .env, passed to the caddy service):
+#   STORE_DOMAIN      e.g. doublea.store          -> customer storefront
+#   API_DOMAIN        e.g. api.doublea.store      -> core API (activation, OTA install, webhooks)
+#   ADMIN_DOMAIN      e.g. admin.doublea.store    -> admin dashboard
+#   ADMIN_API_DOMAIN  e.g. admin-api.doublea.store-> admin API
+#   ACME_EMAIL        your email for Let's Encrypt expiry notices
+#
+# Caddy obtains + renews TLS certificates automatically on first request. Point all four A/AAAA
+# records at this server and open ports 80 + 443.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# --- Customer storefront ---
+{$STORE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy storefront:3001
+}
+
+# --- Core API (public: activation, OTA install manifest/download, payment webhooks) ---
+{$API_DOMAIN} {
+	encode zstd gzip
+	# Readiness probe pings the DB.
+	reverse_proxy core-api:8080 {
+		health_uri /healthz
+	}
+}
+
+# --- Admin dashboard ---
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin-dashboard:3000
+}
+
+# --- Admin API ---
+{$ADMIN_API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin-api:8081 {
+		health_uri /healthz
+	}
+}

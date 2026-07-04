@@ -7,6 +7,11 @@ RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+# NEXT_PUBLIC_* are inlined at build time, so contact links must be present during `npm run build`.
+ARG NEXT_PUBLIC_WHATSAPP=""
+ARG NEXT_PUBLIC_TELEGRAM=""
+ENV NEXT_PUBLIC_WHATSAPP=$NEXT_PUBLIC_WHATSAPP
+ENV NEXT_PUBLIC_TELEGRAM=$NEXT_PUBLIC_TELEGRAM
 COPY storefront/ ./
 COPY --from=deps /app/node_modules ./node_modules
 RUN npm run build
